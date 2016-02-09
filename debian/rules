@@ -1,26 +1,36 @@
 #!/usr/bin/make -f
-# -*- makefile -*-
+
+# see EXAMPLES in dpkg-buildflags(1) and read /usr/share/dpkg/*
+DPKG_EXPORT_BUILDFLAGS = 1
+include /usr/share/dpkg/default.mk
+include /usr/share/quilt/quilt.make
 
 %:
 	dh $@
 
-override_dh_auto_configure:
+override_dh_auto_configure: patch
 	./bootstrap
-	./configure --prefix=/usr --sysconfdir=/etc --localstatedir=/var --enable-fuse --enable-neutrinordp
-	find -name Makefile | while read i; do sed -e 's#\(XRDP_PID_PATH.*/run\)#\1/xrdp#g' -i "$$i"; done
-
-override_dh_makeshlibs:
-	dh_makeshlibs -a -n
-override_dh_installman:
-	dh_installman -a debian/xrdp-keygen.8
-override_dh_installpam:
-	dh_installpam --name=sesman
-	rm debian/xrdp/etc/pam.d/xrdp-sesman
+	dh_auto_configure -- \
+	--enable-fuse --enable-jpeg
 
 override_dh_installdeb:
-	# Clean up some files
-	rm debian/xrdp/etc/xrdp/xrdp.sh
-	rm debian/xrdp/usr/lib/xrdp/*a
-	# Use our own startwm.sh
-	install -m 755 debian/startwm.sh debian/xrdp/etc/xrdp
+	# Remove "-ac"
+	sed -i -e 's|^\(param.\+=-ac\)|#\1|g' debian/xrdp/etc/xrdp/sesman.ini
+	# Enable 1s delay form vnc
+	sed -i -e 's|^#delay_ms=.\+|delay_ms=1000|g' debian/xrdp/etc/xrdp/xrdp.ini
+	# Remove sysv init script. Haven't had time to fix this yet
+	rm debian/xrdp/etc/init.d/xrdp
+	rmdir debian/xrdp/etc/init.d
+	# Replace systemd units
+	rm debian/xrdp/lib/systemd/system/xrdp.service
+	rm debian/xrdp/lib/systemd/system/xrdp-sesman.service
+	install debian/xrdp.service debian/xrdp/lib/systemd/system/xrdp.service
+	install debian/xrdp-sesman.service debian/xrdp/lib/systemd/system/xrdp-sesman.service
+	# Add upstart conf
+	mkdir -p debian/xrdp/etc/init
+	install debian/xrdp.conf debian/xrdp/etc/init/xrdp.conf
+	install debian/xrdp-sesman.conf debian/xrdp/etc/init/xrdp-sesman.conf
 	dh_installdeb -a
+
+override_dh_clean: unpatch
+	dh_clean

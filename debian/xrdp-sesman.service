@@ -1,0 +1,11 @@
+[Unit]
+Description=xrdp session manager
+After=syslog.target network.target
+StopWhenUnneeded=true
+
+[Service]
+EnvironmentFile=-/etc/default/xrdp
+ExecStart=/usr/sbin/xrdp-sesman $SESMAN_OPTIONS -ns
+
+[Install]
+WantedBy=multi-user.target

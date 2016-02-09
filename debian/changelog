@@ -1,0 +1,9 @@
+xrdp (0.9.0+git160104~9c48b7b) wily; urgency=low
+
+  * source from https://github.com/neutrinolabs/xrdp/tree/master, last commit 9c48b7b
+  * build recipe adapted from ppa:kxteam/daily
+  * add/replace systemd unit and upstart conf
+  * removed '-ac' from sesman.ini
+  * fix '[ERROR] env_set_user: error creating .vnc dir'
+
+ -- Fajar A. Nugraha <ubuntu-ppa@fajar.net>  Tue, 09 Feb 2016 17:08:00 +0700
