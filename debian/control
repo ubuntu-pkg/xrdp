@@ -2,7 +2,13 @@ Source: xrdp
 Section: unknown
 Priority: optional
 Maintainer: System Maintainer <root@your-system>
-Build-Depends: debhelper (>= 8.0.0), autotools-dev, quilt
+Build-Depends:	debhelper (>= 8.0.0), quilt,
+		libssl-dev, libpam0g-dev,
+		autoconf (>= 2.59), automake (>= 1.6), libtool,
+		libx11-dev, libxfixes-dev, libfreerdp-dev, pkg-config,
+		libxml2-dev, xsltproc, xutils-dev, python-libxml2,
+		libfuse-dev, libxrandr-dev, zlib1g-dev, libpulse-dev,
+		libjpeg-dev
 Standards-Version: 3.9.4
 Homepage: http://sourceforge.net/projects/xrdp/
 
