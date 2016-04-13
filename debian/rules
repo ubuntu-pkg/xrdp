@@ -22,8 +22,8 @@ override_dh_installdeb:
 	rm debian/xrdp/etc/init.d/xrdp
 	rmdir debian/xrdp/etc/init.d
 	# Replace systemd units
-	rm debian/xrdp/lib/systemd/system/xrdp.service
-	rm debian/xrdp/lib/systemd/system/xrdp-sesman.service
+	rm -f debian/xrdp/lib/systemd/system/xrdp.service
+	rm -f debian/xrdp/lib/systemd/system/xrdp-sesman.service
 	install debian/xrdp.service debian/xrdp/lib/systemd/system/xrdp.service
 	install debian/xrdp-sesman.service debian/xrdp/lib/systemd/system/xrdp-sesman.service
 	# Add upstart conf
