@@ -1,0 +1,8 @@
+#!/bin/sh
+
+test -f /etc/xrdp/rsakeys.ini || xrdp-keygen xrdp /etc/xrdp/rsakeys.ini
+systemctl daemon-reload || true
+systemctl enable xrdp || true
+service xrdp-sesman start
+service xrdp start
+exit 0

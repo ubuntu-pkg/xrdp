@@ -1,0 +1,17 @@
+diff -Naru a/sesman/env.c b/sesman/env.c
+--- a/sesman/env.c	2016-02-09 04:56:29.000000000 +0700
++++ b/sesman/env.c	2016-02-09 06:39:37.079630998 +0700
+@@ -129,11 +129,8 @@
+                 {
+                     /* if no auth_file_path is set, then we go for
+                        $HOME/.vnc/sesman_username_passwd */
+-                    if (g_mkdir(".vnc") < 0)
+-                    {
+-                        log_message(LOG_LEVEL_ERROR,
+-                            "env_set_user: error creating .vnc dir");
+-                    }
++                    g_mkdir(".vnc");
++                    /* just ignore any errors from mkdir for now */
+                     g_sprintf(passwd_file, "%s/.vnc/sesman_%s_passwd", pw_dir, username);
+                 }
+                 else
