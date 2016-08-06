@@ -14,13 +14,12 @@ override_dh_auto_configure: patch
 	--enable-fuse --enable-jpeg
 
 override_dh_installdeb:
-	# Remove "-ac"
-	sed -i -e 's|^\(param.\+=-ac\)|#\1|g' debian/xrdp/etc/xrdp/sesman.ini
-	# Enable 1s delay form vnc
-	sed -i -e 's|^#delay_ms=.\+|delay_ms=1000|g' debian/xrdp/etc/xrdp/xrdp.ini
-	# Remove sysv init script. Haven't had time to fix this yet
-	rm debian/xrdp/etc/init.d/xrdp
-	rmdir debian/xrdp/etc/init.d
+	# Replace some config files
+	mv debian/xrdp/etc/xrdp/xrdp.ini debian/xrdp/etc/xrdp/xrdp.ini.sample
+	mv debian/xrdp.ini debian/xrdp/etc/xrdp/
+	mv debian/xrdp/etc/xrdp/sesman.ini debian/xrdp/etc/xrdp/sesman.ini.sample
+	mv debian/sesman.ini debian/xrdp/etc/xrdp/
+	mv debian/xrdp/etc/xrdp/rsakeys.ini debian/xrdp/etc/xrdp/rsakeys.ini.sample
 	# Replace systemd units
 	rm -f debian/xrdp/lib/systemd/system/xrdp.service
 	rm -f debian/xrdp/lib/systemd/system/xrdp-sesman.service

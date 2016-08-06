@@ -1,6 +1,4 @@
 #!/bin/sh
-#/etc/init.d/xrdp stop
-#update-rc.d xrdp remove
 service xrdp stop
 service xrdp-sesman stop
 systemctl daemon-reload || true

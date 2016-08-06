@@ -15,6 +15,7 @@ Homepage: http://sourceforge.net/projects/xrdp/
 Package: xrdp
 Architecture: any
 Depends: ${shlibs:Depends}, ${misc:Depends}
+Recommends: xrdp-xorg
 Description: Remote Desktop Protocol (RDP) server
  Based on research work by the rdesktop project, xrdp uses the Remote
  Desktop Protocol to present a graphical login to a remote client.
