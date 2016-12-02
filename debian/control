@@ -1,7 +1,7 @@
 Source: xrdp
-Section: unknown
+Section: net
 Priority: optional
-Maintainer: System Maintainer <root@your-system>
+Maintainer: Fajar A. Nugraha <ubuntu-ppa@fajar.net>
 Build-Depends:	debhelper (>= 8.0.0), quilt,
 		libssl-dev, libpam0g-dev,
 		autoconf (>= 2.59), automake (>= 1.6), libtool,
