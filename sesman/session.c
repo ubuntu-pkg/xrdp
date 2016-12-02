@@ -77,7 +77,8 @@ dumpItemsToString(struct list *self, char *outstr, int len)
 
 /******************************************************************************/
 struct session_item *DEFAULT_CC
-session_get_bydata(char *name, int width, int height, int bpp, int type, char *client_ip)
+session_get_bydata(const char *name, int width, int height, int bpp, int type,
+                   const char *client_ip)
 {
     struct session_chain *tmp;
     enum SESMAN_CFG_SESS_POLICY policy = g_cfg->sess.policy;
@@ -484,7 +485,7 @@ session_start_fork(int width, int height, int bpp, char *username,
     }
     else if (pid == 0)
     {
-        g_tcp_close(g_term_event);
+        g_delete_wait_obj(g_term_event);
         g_tcp_close(g_sck);
         g_sprintf(geometry, "%dx%d", width, height);
         g_sprintf(depth, "%d", bpp);
@@ -671,14 +672,13 @@ session_start_fork(int width, int height, int bpp, char *username,
 
                     /* get path of Xorg from config */
                     xserver = g_strdup((const char *)list_get_item(g_cfg->xorg_params, 0));
-                    list_remove_item(g_cfg->xorg_params, 0);
 
                     /* these are the must have parameters */
                     list_add_item(xserver_params, (tintptr) g_strdup(xserver));
                     list_add_item(xserver_params, (tintptr) g_strdup(screen));
 
                     /* additional parameters from sesman.ini file */
-                    list_append_list_strdup(g_cfg->xorg_params, xserver_params, 0);
+                    list_append_list_strdup(g_cfg->xorg_params, xserver_params, 1);
 
                     /* make sure it ends with a zero */
                     list_add_item(xserver_params, 0);
@@ -705,7 +705,6 @@ session_start_fork(int width, int height, int bpp, char *username,
 
                     /* get path of Xvnc from config */
                     xserver = g_strdup((const char *)list_get_item(g_cfg->vnc_params, 0));
-                    list_remove_item(g_cfg->vnc_params, 0);
 
                     /* these are the must have parameters */
                     list_add_item(xserver_params, (tintptr)g_strdup(xserver));
@@ -722,7 +721,7 @@ session_start_fork(int width, int height, int bpp, char *username,
                     /* additional parameters from sesman.ini file */
                     //config_read_xserver_params(SESMAN_SESSION_TYPE_XVNC,
                     //                           xserver_params);
-                    list_append_list_strdup(g_cfg->vnc_params, xserver_params, 0);
+                    list_append_list_strdup(g_cfg->vnc_params, xserver_params, 1);
 
                     /* make sure it ends with a zero */
                     list_add_item(xserver_params, 0);
@@ -737,7 +736,6 @@ session_start_fork(int width, int height, int bpp, char *username,
 
                     /* get path of X11rdp from config */
                     xserver = g_strdup((const char *)list_get_item(g_cfg->rdp_params, 0));
-                    list_remove_item(g_cfg->rdp_params, 0);
 
                     /* these are the must have parameters */
                     list_add_item(xserver_params, (tintptr)g_strdup(xserver));
@@ -750,7 +748,7 @@ session_start_fork(int width, int height, int bpp, char *username,
                     /* additional parameters from sesman.ini file */
                     //config_read_xserver_params(SESMAN_SESSION_TYPE_XRDP,
                     //                           xserver_params);
-                    list_append_list_strdup(g_cfg->rdp_params, xserver_params, 0);
+                    list_append_list_strdup(g_cfg->rdp_params, xserver_params, 1);
 
                     /* make sure it ends with a zero */
                     list_add_item(xserver_params, 0);
@@ -1016,7 +1014,7 @@ session_get_bypid(int pid)
 
 /******************************************************************************/
 struct SCP_DISCONNECTED_SESSION *
-session_get_byuser(char *user, int *cnt, unsigned char flags)
+session_get_byuser(const char *user, int *cnt, unsigned char flags)
 {
     struct session_chain *tmp;
     struct SCP_DISCONNECTED_SESSION *sess;

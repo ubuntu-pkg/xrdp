@@ -374,6 +374,7 @@ config_read_rdp_params(int file, struct config_sesman *cs, struct list *param_n,
     list_clear(param_n);
 
     cs->rdp_params = list_create();
+    cs->rdp_params->auto_free = 1;
 
     file_read_section(file, SESMAN_CFG_RDP_PARAMS, param_n, param_v);
 
@@ -382,7 +383,7 @@ config_read_rdp_params(int file, struct config_sesman *cs, struct list *param_n,
         list_add_item(cs->rdp_params, (long)g_strdup((char *)list_get_item(param_v, i)));
     }
 
-    /* printing security config */
+    /* printing X11rdp parameters */
     g_printf("X11rdp parameters:\r\n");
 
     for (i = 0; i < cs->rdp_params->count; i++)
@@ -404,6 +405,7 @@ config_read_xorg_params(int file, struct config_sesman *cs,
     list_clear(param_n);
 
     cs->xorg_params = list_create();
+    cs->xorg_params->auto_free = 1;
 
     file_read_section(file, SESMAN_CFG_XORG_PARAMS, param_n, param_v);
 
@@ -413,7 +415,7 @@ config_read_xorg_params(int file, struct config_sesman *cs,
                       (long) g_strdup((char *) list_get_item(param_v, i)));
     }
 
-    /* printing security config */
+    /* printing XOrg parameters */
     g_printf("XOrg parameters:\r\n");
 
     for (i = 0; i < cs->xorg_params->count; i++)
@@ -436,6 +438,7 @@ config_read_vnc_params(int file, struct config_sesman *cs, struct list *param_n,
     list_clear(param_n);
 
     cs->vnc_params = list_create();
+    cs->vnc_params->auto_free = 1;
 
     file_read_section(file, SESMAN_CFG_VNC_PARAMS, param_n, param_v);
 
@@ -444,7 +447,7 @@ config_read_vnc_params(int file, struct config_sesman *cs, struct list *param_n,
         list_add_item(cs->vnc_params, (long)g_strdup((char *)list_get_item(param_v, i)));
     }
 
-    /* printing security config */
+    /* printing Xvnc parameters */
     g_printf("Xvnc parameters:\r\n");
 
     for (i = 0; i < cs->vnc_params->count; i++)
@@ -466,7 +469,9 @@ config_read_session_variables(int file, struct config_sesman *cs,
     list_clear(param_n);
 
     cs->session_variables1 = list_create();
+    cs->session_variables1->auto_free = 1;
     cs->session_variables2 = list_create();
+    cs->session_variables2->auto_free = 1;
 
     file_read_section(file, SESMAN_CFG_SESSION_VARIABLES, param_n, param_v);
 
@@ -478,7 +483,7 @@ config_read_session_variables(int file, struct config_sesman *cs,
                       (tintptr) g_strdup((char *) list_get_item(param_v, i)));
     }
 
-    /* printing security config */
+    /* printing session variables */
     g_writeln("%s parameters:", SESMAN_CFG_SESSION_VARIABLES);
 
     for (i = 0; i < cs->session_variables1->count; i++)
@@ -489,4 +494,15 @@ config_read_session_variables(int file, struct config_sesman *cs,
     }
 
     return 0;
+}
+
+void
+config_free(struct config_sesman *cs)
+{
+    list_delete(cs->rdp_params);
+    list_delete(cs->vnc_params);
+    list_delete(cs->xorg_params);
+    list_delete(cs->session_variables1);
+    list_delete(cs->session_variables2);
+    g_free(cs);
 }

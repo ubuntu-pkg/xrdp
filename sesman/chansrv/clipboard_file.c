@@ -200,6 +200,7 @@ clipboard_get_file(char* file, int bytes)
     }
     g_memcpy(filename, file + pindex + 1, (bytes - 1) - pindex);
     /* this should replace %20 with space */
+    clipboard_check_file(pathname);
     clipboard_check_file(filename);
     g_snprintf(full_fn, 255, "%s/%s", pathname, filename);
     if (g_directory_exist(full_fn))
@@ -452,7 +453,7 @@ clipboard_send_file_data(int streamId, int lindex,
     if (g_file_seek(fd, nPositionLow) < 0)
     {
         log_message(LOG_LEVEL_ERROR, "clipboard_send_file_data: seek error "
-            "in file: %s\n", full_fn);
+            "in file: %s", full_fn);
         g_file_close(fd);
         return 1;
     }

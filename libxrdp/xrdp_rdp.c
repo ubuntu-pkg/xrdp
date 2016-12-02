@@ -160,6 +160,14 @@ xrdp_rdp_read_config(struct xrdp_client_info *client_info)
                 client_info->use_fast_path = 0;
             }
         }
+        else if (g_strcasecmp(item, "disableSSLv3") == 0)
+        {
+            client_info->disableSSLv3 = g_text2bool(value);
+        }
+        else if (g_strcasecmp(item, "tls_ciphers") == 0)
+        {
+            g_strcpy(client_info->tls_ciphers, value);
+        }
         else if (g_strcasecmp(item, "security_layer") == 0)
         {
             if (g_strcasecmp(value, "rdp") == 0)
@@ -174,10 +182,15 @@ xrdp_rdp_read_config(struct xrdp_client_info *client_info)
             {
                 client_info->security_layer = PROTOCOL_SSL | PROTOCOL_HYBRID;
             }
+            else if (g_strcasecmp(value, "negotiate") == 0)
+            {
+                client_info->security_layer = PROTOCOL_SSL | PROTOCOL_HYBRID | PROTOCOL_HYBRID_EX;
+            }
             else
             {
-                log_message(LOG_LEVEL_ALWAYS,"Warning: Your configured security layer is "
-                          "undefined, xrdp will negotiate client compatible");
+                log_message(LOG_LEVEL_ERROR, "security_layer=%s is not "
+                            "recognized, will use security_layer=negotiate",
+                            value);
                 client_info->security_layer = PROTOCOL_SSL | PROTOCOL_HYBRID | PROTOCOL_HYBRID_EX;
             }
         }
@@ -189,8 +202,8 @@ xrdp_rdp_read_config(struct xrdp_client_info *client_info)
                 /* default certificate path */
                 g_snprintf(client_info->certificate, 1023, "%s/cert.pem", XRDP_CFG_PATH);
                 log_message(LOG_LEVEL_INFO,
-                            "Missing definition of X.509 certificate, use "
-                            "default instead: %s", client_info->certificate);
+                            "Using default X.509 certificate: %s",
+                            client_info->certificate);
 
             }
             else if (value[0] != '/')
@@ -198,7 +211,7 @@ xrdp_rdp_read_config(struct xrdp_client_info *client_info)
                 /* default certificate path */
                 g_snprintf(client_info->certificate, 1023, "%s/cert.pem", XRDP_CFG_PATH);
                 log_message(LOG_LEVEL_WARNING,
-                            "No absolute path to X.509 certificate, use "
+                            "X.509 certificate should use absolute path, using "
                             "default instead: %s", client_info->certificate);
             }
             else
@@ -214,16 +227,15 @@ xrdp_rdp_read_config(struct xrdp_client_info *client_info)
             {
                 /* default key_file path */
                 g_snprintf(client_info->key_file, 1023, "%s/key.pem", XRDP_CFG_PATH);
-                log_message(LOG_LEVEL_INFO,
-                            "Missing definition of X.509 key file, use "
-                            "default instead: %s", client_info->key_file);
+                log_message(LOG_LEVEL_INFO, "Using default X.509 key file: %s",
+                            client_info->key_file);
             }
             else if (value[0] != '/')
             {
                 /* default key_file path */
                 g_snprintf(client_info->key_file, 1023, "%s/key.pem", XRDP_CFG_PATH);
                 log_message(LOG_LEVEL_WARNING,
-                            "No absolute path to X.509 key file, use"
+                            "X.509 key file should use absolute path, using "
                             "default instead: %s", client_info->key_file);
             }
             else

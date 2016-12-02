@@ -411,7 +411,7 @@ struct xrdp_listen
 struct xrdp_region
 {
   struct xrdp_wm* wm; /* owner */
-  struct list* rects;
+  struct pixman_region16 *reg;
 };
 
 /* painter */
@@ -592,7 +592,7 @@ struct xrdp_cfg_globals
     int  ls_btn_cancel_y_pos;    /* y pos for Cancel button */
     int  ls_btn_cancel_width;    /* width of Cancel button */
     int  ls_btn_cancel_height;   /* height of Cancel button */
-    char ls_title[256];  	 /* loginscreen window title */
+    char ls_title[256];          /* loginscreen window title */
 };
 
 struct xrdp_cfg_logging
