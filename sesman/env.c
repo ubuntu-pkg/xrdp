@@ -24,16 +24,21 @@
  *
  */
 
+#if defined(HAVE_CONFIG_H)
+#include <config_ac.h>
+#endif
+
+#include <grp.h>
+
 #include "list.h"
 #include "sesman.h"
-#include "grp.h"
 #include "ssl_calls.h"
 
 extern unsigned char g_fixedkey[8]; /* in sesman.c */
 extern struct config_sesman *g_cfg;  /* in sesman.c */
 
 /******************************************************************************/
-int DEFAULT_CC
+int
 env_check_password_file(const char *filename, const char *passwd)
 {
     char encryptedPasswd[16];
@@ -64,7 +69,7 @@ env_check_password_file(const char *filename, const char *passwd)
     g_strncpy(encryptedPasswd, passwd, 8);
     g_memset(key, 0, sizeof(key));
     g_mirror_memcpy(key, g_fixedkey, 8);
-    des = ssl_des3_encrypt_info_create(key, 0); 
+    des = ssl_des3_encrypt_info_create(key, 0);
     ssl_des3_encrypt(des, 8, encryptedPasswd, encryptedPasswd);
     ssl_des3_info_delete(des);
     fd = g_file_open_ex(filename, 0, 1, 1, 1);
@@ -82,7 +87,7 @@ env_check_password_file(const char *filename, const char *passwd)
 
 /******************************************************************************/
 /*  its the responsibility of the caller to free passwd_file                  */
-int DEFAULT_CC
+int
 env_set_user(const char *username, char **passwd_file, int display,
              const struct list *env_names, const struct list *env_values)
 {
@@ -119,7 +124,7 @@ env_set_user(const char *username, char **passwd_file, int display,
             error = g_setuid(uid);
         }
 
-        g_mk_temp_dir(0);
+        g_mk_socket_path(0);
 
         if (error == 0)
         {
@@ -127,6 +132,7 @@ env_set_user(const char *username, char **passwd_file, int display,
             g_setenv("SHELL", pw_shell, 1);
             g_setenv("PATH", "/sbin:/bin:/usr/bin:/usr/local/bin", 1);
             g_setenv("USER", username, 1);
+            g_setenv("LOGNAME", username, 1);
             g_sprintf(text, "%d", uid);
             g_setenv("UID", text, 1);
             g_setenv("HOME", pw_dir, 1);
@@ -134,6 +140,8 @@ env_set_user(const char *username, char **passwd_file, int display,
             g_sprintf(text, ":%d.0", display);
             g_setenv("DISPLAY", text, 1);
             g_setenv("XRDP_SESSION", "1", 1);
+            /* XRDP_SOCKET_PATH should be set even here, chansrv uses this */
+            g_setenv("XRDP_SOCKET_PATH", XRDP_SOCKET_PATH, 1);
             if ((env_names != 0) && (env_values != 0) &&
                 (env_names->count == env_values->count))
             {
@@ -150,7 +158,7 @@ env_set_user(const char *username, char **passwd_file, int display,
                 if (0 == g_cfg->auth_file_path)
                 {
                     /* if no auth_file_path is set, then we go for
-                     $HOME/.vnc/sesman_username_passwd */
+                     $HOME/.vnc/sesman_username_passwd:DISPLAY */
                     if (!g_directory_exist(".vnc"))
                     {
                         if (g_mkdir(".vnc") < 0)
@@ -161,12 +169,24 @@ env_set_user(const char *username, char **passwd_file, int display,
                         }
                     }
 
-                    len = g_snprintf(NULL, 0, "%s/.vnc/sesman_%s_passwd", pw_dir, username);
+                    len = g_snprintf(NULL, 0, "%s/.vnc/sesman_%s_passwd:%d",
+                                     pw_dir, username, display);
 
                     *passwd_file = (char *) g_malloc(len + 1, 1);
                     if (*passwd_file != NULL)
                     {
-                        g_sprintf(*passwd_file, "%s/.vnc/sesman_%s_passwd", pw_dir, username);
+                        /* Try legacy name first, remove if found */
+                        g_sprintf(*passwd_file, "%s/.vnc/sesman_%s_passwd",
+                                  pw_dir, username);
+                        if (g_file_exist(*passwd_file))
+                        {
+                            log_message(LOG_LEVEL_WARNING, "Removing insecure "
+                                        "password file %s", *passwd_file);
+                            g_file_delete(*passwd_file);
+                        }
+
+                        g_sprintf(*passwd_file, "%s/.vnc/sesman_%s_passwd:%d",
+                                  pw_dir, username, display);
                     }
                 }
                 else

@@ -18,6 +18,10 @@
  * Encoder
  */
 
+#if defined(HAVE_CONFIG_H)
+#include <config_ac.h>
+#endif
+
 #include "xrdp_encoder.h"
 #include "xrdp.h"
 #include "thread_calls.h"
@@ -39,16 +43,20 @@
   } \
   while (0)
 
+#define XRDP_SURCMD_PREFIX_BYTES 256
+
 /*****************************************************************************/
 static int
 process_enc_jpg(struct xrdp_encoder *self, XRDP_ENC_DATA *enc);
+#ifdef XRDP_RFXCODEC
 static int
 process_enc_rfx(struct xrdp_encoder *self, XRDP_ENC_DATA *enc);
+#endif
 static int
 process_enc_h264(struct xrdp_encoder *self, XRDP_ENC_DATA *enc);
 
 /*****************************************************************************/
-struct xrdp_encoder *APP_CC
+struct xrdp_encoder *
 xrdp_encoder_create(struct xrdp_mm *mm)
 {
     struct xrdp_encoder *self;
@@ -58,12 +66,7 @@ xrdp_encoder_create(struct xrdp_mm *mm)
 
     client_info = mm->wm->client_info;
 
-    if (client_info->client_os_major != OSMAJORTYPE_UNIX)
-    {
-        /* temp workaround to avoid black screen in non-supported clients */
-        return 0;
-    }
-    if (client_info->mcs_connection_type != 6) /* LAN */
+    if (client_info->mcs_connection_type != CONNECTION_TYPE_LAN)
     {
         return 0;
     }
@@ -87,6 +90,7 @@ xrdp_encoder_create(struct xrdp_mm *mm)
             (32 << 24) | (3 << 16) | (8 << 12) | (8 << 8) | (8 << 4) | 8;
         self->process_enc = process_enc_jpg;
     }
+#ifdef XRDP_RFXCODEC
     else if (client_info->rfx_codec_id != 0)
     {
         LLOGLN(0, ("xrdp_encoder_create: starting rfx codec session"));
@@ -94,13 +98,11 @@ xrdp_encoder_create(struct xrdp_mm *mm)
         self->in_codec_mode = 1;
         client_info->capture_code = 2;
         self->process_enc = process_enc_rfx;
-#ifdef XRDP_RFXCODEC
-        self->codec_handle =
-            rfxcodec_encode_create(mm->wm->screen->width,
-                                   mm->wm->screen->height,
-                                   RFX_FORMAT_YUV, 0);
-#endif
+        self->codec_handle = rfxcodec_encode_create(mm->wm->screen->width,
+                                                    mm->wm->screen->height,
+                                                    RFX_FORMAT_YUV, 0);
     }
+#endif
     else if (client_info->h264_codec_id != 0)
     {
         LLOGLN(0, ("xrdp_encoder_create: starting h264 codec session"));
@@ -133,6 +135,10 @@ xrdp_encoder_create(struct xrdp_mm *mm)
     self->xrdp_encoder_event_processed = g_create_wait_obj(buf);
     g_snprintf(buf, 1024, "xrdp_%8.8x_encoder_term", pid);
     self->xrdp_encoder_term = g_create_wait_obj(buf);
+    self->max_compressed_bytes = client_info->max_fastpath_frag_bytes & ~15;
+    self->frames_in_flight = client_info->max_unacknowledged_frame_count;
+    /* make sure frames_in_flight is at least 1 */
+    self->frames_in_flight = MAX(self->frames_in_flight, 1);
 
     /* create thread to process messages */
     tc_thread_create(proc_enc_msg, self);
@@ -141,7 +147,7 @@ xrdp_encoder_create(struct xrdp_mm *mm)
 }
 
 /*****************************************************************************/
-void APP_CC
+void
 xrdp_encoder_delete(struct xrdp_encoder *self)
 {
     XRDP_ENC_DATA *enc;
@@ -162,6 +168,16 @@ xrdp_encoder_delete(struct xrdp_encoder *self)
     g_sleep(1000);
 
     /* todo delete specific encoder */
+
+    if (self->process_enc == process_enc_jpg)
+    {
+    }
+#ifdef XRDP_RFXCODEC
+    else if (self->process_enc == process_enc_rfx)
+    {
+        rfxcodec_encode_destroy(self->codec_handle);
+    }
+#endif
 
     /* destroy wait objects used for signalling */
     g_delete_wait_obj(self->xrdp_encoder_event_to_proc);
@@ -202,6 +218,7 @@ xrdp_encoder_delete(struct xrdp_encoder *self)
         }
         fifo_delete(fifo);
     }
+    tc_mutex_delete(self->mutex);
     g_free(self);
 }
 
@@ -296,7 +313,6 @@ process_enc_jpg(struct xrdp_encoder *self, XRDP_ENC_DATA *enc)
 }
 
 #ifdef XRDP_RFXCODEC
-
 /*****************************************************************************/
 /* called from encoder thread */
 static int
@@ -317,6 +333,7 @@ process_enc_rfx(struct xrdp_encoder *self, XRDP_ENC_DATA *enc)
     tbus event_processed;
     struct rfx_tile *tiles;
     struct rfx_rect *rfxrects;
+    int alloc_bytes;
 
     LLOGLN(10, ("process_enc_rfx:"));
     LLOGLN(10, ("process_enc_rfx: num_crects %d num_drects %d",
@@ -325,64 +342,74 @@ process_enc_rfx(struct xrdp_encoder *self, XRDP_ENC_DATA *enc)
     mutex = self->mutex;
     event_processed = self->xrdp_encoder_event_processed;
 
-    if ((enc->num_crects > 512) || (enc->num_drects > 512))
+    error = 1;
+    out_data = NULL;
+    out_data_bytes = 0;
+
+    if ((enc->num_crects > 0) && (enc->num_drects > 0))
     {
-        return 0;
+        alloc_bytes = XRDP_SURCMD_PREFIX_BYTES;
+        alloc_bytes += self->max_compressed_bytes;
+        alloc_bytes += sizeof(struct rfx_tile) * enc->num_crects +
+                       sizeof(struct rfx_rect) * enc->num_drects;
+        out_data = g_new(char, alloc_bytes);
+        if (out_data != NULL)
+        {
+            tiles = (struct rfx_tile *)
+                    (out_data + XRDP_SURCMD_PREFIX_BYTES +
+                     self->max_compressed_bytes);
+            rfxrects = (struct rfx_rect *) (tiles + enc->num_crects);
+
+            count = enc->num_crects;
+            for (index = 0; index < count; index++)
+            {
+                x = enc->crects[index * 4 + 0];
+                y = enc->crects[index * 4 + 1];
+                cx = enc->crects[index * 4 + 2];
+                cy = enc->crects[index * 4 + 3];
+                tiles[index].x = x;
+                tiles[index].y = y;
+                tiles[index].cx = cx;
+                tiles[index].cy = cy;
+                tiles[index].quant_y = 0;
+                tiles[index].quant_cb = 0;
+                tiles[index].quant_cr = 0;
+            }
+
+            count = enc->num_drects;
+            for (index = 0; index < count; index++)
+            {
+                x = enc->drects[index * 4 + 0];
+                y = enc->drects[index * 4 + 1];
+                cx = enc->drects[index * 4 + 2];
+                cy = enc->drects[index * 4 + 3];
+                rfxrects[index].x = x;
+                rfxrects[index].y = y;
+                rfxrects[index].cx = cx;
+                rfxrects[index].cy = cy;
+            }
+
+            out_data_bytes = self->max_compressed_bytes;
+            error = rfxcodec_encode(self->codec_handle,
+                                    out_data + XRDP_SURCMD_PREFIX_BYTES,
+                                    &out_data_bytes, enc->data,
+                                    enc->width, enc->height, enc->width * 4,
+                                    rfxrects, enc->num_drects,
+                                    tiles, enc->num_crects, 0, 0);
+        }
     }
 
-    out_data_bytes = 16 * 1024 * 1024;
-    index = 256 + sizeof(struct rfx_tile) * 512 +
-                  sizeof(struct rfx_rect) * 512;
-    out_data = (char *) g_malloc(out_data_bytes + index, 0);
-    if (out_data == 0)
-    {
-        return 0;
-    }
-    tiles = (struct rfx_tile *) (out_data + out_data_bytes + 256);
-    rfxrects = (struct rfx_rect *) (tiles + 512);
-
-    count = enc->num_crects;
-    for (index = 0; index < count; index++)
-    {
-        x = enc->crects[index * 4 + 0];
-        y = enc->crects[index * 4 + 1];
-        cx = enc->crects[index * 4 + 2];
-        cy = enc->crects[index * 4 + 3];
-        LLOGLN(10, ("process_enc_rfx:"));
-        tiles[index].x = x;
-        tiles[index].y = y;
-        tiles[index].cx = cx;
-        tiles[index].cy = cy;
-        LLOGLN(10, ("x %d y %d cx %d cy %d", x, y, cx, cy));
-        tiles[index].quant_y = 0;
-        tiles[index].quant_cb = 0;
-        tiles[index].quant_cr = 0;
-    }
-
-    count = enc->num_drects;
-    for (index = 0; index < count; index++)
-    {
-        x = enc->drects[index * 4 + 0];
-        y = enc->drects[index * 4 + 1];
-        cx = enc->drects[index * 4 + 2];
-        cy = enc->drects[index * 4 + 3];
-        LLOGLN(10, ("process_enc_rfx:"));
-        rfxrects[index].x = x;
-        rfxrects[index].y = y;
-        rfxrects[index].cx = cx;
-        rfxrects[index].cy = cy;
-    }
-
-    error = rfxcodec_encode(self->codec_handle, out_data + 256, &out_data_bytes,
-                            enc->data, enc->width, enc->height, enc->width * 4,
-                            rfxrects, enc->num_drects,
-                            tiles, enc->num_crects, 0, 0);
     LLOGLN(10, ("process_enc_rfx: rfxcodec_encode rv %d", error));
-
-    enc_done = (XRDP_ENC_DATA_DONE *)
-               g_malloc(sizeof(XRDP_ENC_DATA_DONE), 1);
-    enc_done->comp_bytes = out_data_bytes;
-    enc_done->pad_bytes = 256;
+    /* only if enc_done->comp_bytes is not zero is something sent
+       to the client but you must always send something back even
+       on error so Xorg can get ack */
+    enc_done = g_new0(XRDP_ENC_DATA_DONE, 1);
+    if (enc_done == NULL)
+    {
+        return 1;
+    }
+    enc_done->comp_bytes = error == 0 ? out_data_bytes : 0;
+    enc_done->pad_bytes = XRDP_SURCMD_PREFIX_BYTES;
     enc_done->comp_pad_data = out_data;
     enc_done->enc = enc;
     enc_done->last = 1;
@@ -399,17 +426,6 @@ process_enc_rfx(struct xrdp_encoder *self, XRDP_ENC_DATA *enc)
 
     return 0;
 }
-
-#else
-
-/*****************************************************************************/
-/* called from encoder thread */
-static int
-process_enc_rfx(struct xrdp_encoder *self, XRDP_ENC_DATA *enc)
-{
-    return 0;
-}
-
 #endif
 
 /*****************************************************************************/

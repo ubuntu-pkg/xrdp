@@ -9,14 +9,20 @@ EXTRA_DIST = pixman-region.c
 include_HEADERS = \
   xrdp_client_info.h \
   xrdp_constants.h \
-  xrdp_rail.h
+  xrdp_rail.h \
+  xrdp_sockets.h
 
 AM_CPPFLAGS = \
   -DXRDP_CFG_PATH=\"${sysconfdir}/xrdp\" \
   -DXRDP_SBIN_PATH=\"${sbindir}\" \
   -DXRDP_SHARE_PATH=\"${datadir}/xrdp\" \
   -DXRDP_PID_PATH=\"${localstatedir}/run\" \
-  -DXRDP_LOG_PATH=\"${localstatedir}/log\"
+  -DXRDP_LOG_PATH=\"${localstatedir}/log\" \
+  -DXRDP_SOCKET_PATH=\"${socketdir}\"
+
+if XRDP_DEBUG
+AM_CPPFLAGS += -DXRDP_DEBUG
+endif
 
 AM_CFLAGS = $(OPENSSL_CFLAGS)
 
@@ -25,13 +31,13 @@ module_LTLIBRARIES = \
 
 libcommon_la_SOURCES = \
   arch.h \
-  crc16.h \
+  base64.h \
+  base64.c \
   defines.h \
   fifo.c \
   fifo.h \
   file.c \
   file.h \
-  file_loc.h \
   list.c \
   list.h \
   list16.c \

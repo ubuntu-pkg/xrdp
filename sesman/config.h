@@ -240,8 +240,16 @@ struct config_sesman
    */
   struct config_sessions sess;
 
-  struct list* session_variables1;
-  struct list* session_variables2;
+  /**
+   * @var env_names
+   * @brief environment variable name list
+   */
+  struct list* env_names;
+   /**
+   * @var env_values
+   * @brief environment variable value list
+   */
+  struct list* env_values;
 };
 
 /**
@@ -251,7 +259,7 @@ struct config_sesman
  * @return 0 on success, 1 on failure
  *
  */
-int DEFAULT_CC
+int
 config_read(struct config_sesman* cfg);
 
 /**
@@ -264,7 +272,7 @@ config_read(struct config_sesman* cfg);
  * @return 0 on success, 1 on failure
  *
  */
-int DEFAULT_CC
+int
 config_read_globals(int file, struct config_sesman* cf,
                     struct list* param_n, struct list* param_v);
 
@@ -278,7 +286,7 @@ config_read_globals(int file, struct config_sesman* cf,
  * @return 0 on success, 1 on failure
  *
  */
-int DEFAULT_CC
+int
 config_read_logging(int file, struct log_config* lc, struct list* param_n,
                     struct list* param_v);
 
@@ -292,7 +300,7 @@ config_read_logging(int file, struct log_config* lc, struct list* param_n,
  * @return 0 on success, 1 on failure
  *
  */
-int DEFAULT_CC
+int
 config_read_security(int file, struct config_security* sc,
                      struct list* param_n, struct list* param_v);
 
@@ -306,7 +314,7 @@ config_read_security(int file, struct config_security* sc,
  * @return 0 on success, 1 on failure
  *
  */
-int DEFAULT_CC
+int
 config_read_sessions(int file, struct config_sessions* ss,
                      struct list* param_n, struct list* param_v);
 
@@ -320,7 +328,7 @@ config_read_sessions(int file, struct config_sessions* ss,
  * @return 0 on success, 1 on failure
  *
  */
-int DEFAULT_CC
+int
 config_read_rdp_params(int file, struct config_sesman* cs, struct list* param_n,
                        struct list* param_v);
 
@@ -334,7 +342,7 @@ config_read_rdp_params(int file, struct config_sesman* cs, struct list* param_n,
  * @return 0 on success, 1 on failure
  *
  */
-int DEFAULT_CC
+int
 config_read_xorg_params(int file, struct config_sesman* cs, struct list* param_n,
                         struct list* param_v);
 
@@ -348,11 +356,11 @@ config_read_xorg_params(int file, struct config_sesman* cs, struct list* param_n
  * @return 0 on success, 1 on failure
  *
  */
-int DEFAULT_CC
+int
 config_read_vnc_params(int file, struct config_sesman* cs, struct list* param_n,
                        struct list* param_v);
 
-int DEFAULT_CC
+int
 config_read_session_variables(int file, struct config_sesman *cs,
                               struct list *param_n, struct list *param_v);
 

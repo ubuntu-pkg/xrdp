@@ -76,21 +76,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 //#include "colormapst.h"
 
-/* test to see if this is xorg source or xfree86 */
-#ifdef XORGSERVER
-#  define RDP_IS_XORG
-#else
-#  include <xf86Version.h>
-#  if (XF86_VERSION_MAJOR == 4 && XF86_VERSION_MINOR > 3)
-#    define RDP_IS_XFREE86
-#  elif (XF86_VERSION_MAJOR > 4)
-#    define RDP_IS_XFREE86
-#  else
-#    define RDP_IS_XORG
-#  endif
-#endif
-
-#define X11RDPVER "0.9.0"
+#define X11RDPVER "0.9.5"
 
 #define PixelDPI 100
 #define PixelToMM(_size) (((_size) * 254 + (PixelDPI) * 5) / ((PixelDPI) * 10))
@@ -362,6 +348,8 @@ int
 g_directory_exist(const char* dirname);
 int
 g_chmod_hex(const char* filename, int flags);
+const char *
+g_socket_dir(void);
 void
 hexdump(unsigned char *p, unsigned int len);
 void

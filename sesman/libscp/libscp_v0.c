@@ -24,6 +24,10 @@
  *
  */
 
+#if defined(HAVE_CONFIG_H)
+#include <config_ac.h>
+#endif
+
 #include "libscp_v0.h"
 
 #include "os_calls.h"
@@ -157,7 +161,7 @@ scp_v0s_accept(struct SCP_CONNECTION *c, struct SCP_SESSION **s, int skipVchk)
     struct SCP_SESSION *session = 0;
     tui16 sz;
     tui32 code = 0;
-    char buf[257];
+    char *buf = 0;
 
     if (!skipVchk)
     {
@@ -222,27 +226,31 @@ scp_v0s_accept(struct SCP_CONNECTION *c, struct SCP_SESSION **s, int skipVchk)
 
         /* reading username */
         in_uint16_be(c->in_s, sz);
-        buf[sz] = '\0';
+        buf = g_new0(char, sz + 1);
         in_uint8a(c->in_s, buf, sz);
-
+        buf[sz] = '\0';
         if (0 != scp_session_set_username(session, buf))
         {
             scp_session_destroy(session);
             log_message(LOG_LEVEL_WARNING, "[v0:%d] connection aborted: error setting username", __LINE__);
+            g_free(buf);
             return SCP_SERVER_STATE_INTERNAL_ERR;
         }
+        g_free(buf);
 
         /* reading password */
         in_uint16_be(c->in_s, sz);
-        buf[sz] = '\0';
+        buf = g_new0(char, sz + 1);
         in_uint8a(c->in_s, buf, sz);
-
+        buf[sz] = '\0';
         if (0 != scp_session_set_password(session, buf))
         {
             scp_session_destroy(session);
             log_message(LOG_LEVEL_WARNING, "[v0:%d] connection aborted: error setting password", __LINE__);
+            g_free(buf);
             return SCP_SERVER_STATE_INTERNAL_ERR;
         }
+        g_free(buf);
 
         /* width */
         in_uint16_be(c->in_s, sz);
@@ -268,9 +276,11 @@ scp_v0s_accept(struct SCP_CONNECTION *c, struct SCP_SESSION **s, int skipVchk)
 
             if (sz > 0)
             {
+                buf = g_new0(char, sz + 1);
                 in_uint8a(c->in_s, buf, sz);
                 buf[sz] = '\0';
                 scp_session_set_domain(session, buf);
+                g_free(buf);
             }
         }
 
@@ -281,9 +291,11 @@ scp_v0s_accept(struct SCP_CONNECTION *c, struct SCP_SESSION **s, int skipVchk)
 
             if (sz > 0)
             {
+                buf = g_new0(char, sz + 1);
                 in_uint8a(c->in_s, buf, sz);
                 buf[sz] = '\0';
                 scp_session_set_program(session, buf);
+                g_free(buf);
             }
         }
 
@@ -294,9 +306,11 @@ scp_v0s_accept(struct SCP_CONNECTION *c, struct SCP_SESSION **s, int skipVchk)
 
             if (sz > 0)
             {
+                buf = g_new0(char, sz + 1);
                 in_uint8a(c->in_s, buf, sz);
                 buf[sz] = '\0';
                 scp_session_set_directory(session, buf);
+                g_free(buf);
             }
         }
 
@@ -307,9 +321,11 @@ scp_v0s_accept(struct SCP_CONNECTION *c, struct SCP_SESSION **s, int skipVchk)
 
             if (sz > 0)
             {
+                buf = g_new0(char, sz + 1);
                 in_uint8a(c->in_s, buf, sz);
                 buf[sz] = '\0';
                 scp_session_set_client_ip(session, buf);
+                g_free(buf);
             }
         }
     }
@@ -328,29 +344,35 @@ scp_v0s_accept(struct SCP_CONNECTION *c, struct SCP_SESSION **s, int skipVchk)
         scp_session_set_type(session, SCP_GW_AUTHENTICATION);
         /* reading username */
         in_uint16_be(c->in_s, sz);
-        buf[sz] = '\0';
+        buf = g_new0(char, sz + 1);
         in_uint8a(c->in_s, buf, sz);
+        buf[sz] = '\0';
 
         /* g_writeln("Received user name: %s",buf); */
         if (0 != scp_session_set_username(session, buf))
         {
             scp_session_destroy(session);
             /* until syslog merge log_message(s_log, LOG_LEVEL_WARNING, "[v0:%d] connection aborted: error setting        username", __LINE__);*/
+            g_free(buf);
             return SCP_SERVER_STATE_INTERNAL_ERR;
         }
+        g_free(buf);
 
         /* reading password */
         in_uint16_be(c->in_s, sz);
-        buf[sz] = '\0';
+        buf = g_new0(char, sz + 1);
         in_uint8a(c->in_s, buf, sz);
+        buf[sz] = '\0';
 
         /* g_writeln("Received password: %s",buf); */
         if (0 != scp_session_set_password(session, buf))
         {
             scp_session_destroy(session);
             /* until syslog merge log_message(s_log, LOG_LEVEL_WARNING, "[v0:%d] connection aborted: error setting password", __LINE__); */
+            g_free(buf);
             return SCP_SERVER_STATE_INTERNAL_ERR;
         }
+        g_free(buf);
     }
     else
     {
@@ -364,13 +386,20 @@ scp_v0s_accept(struct SCP_CONNECTION *c, struct SCP_SESSION **s, int skipVchk)
 
 /******************************************************************************/
 enum SCP_SERVER_STATES_E
-scp_v0s_allow_connection(struct SCP_CONNECTION *c, SCP_DISPLAY d)
+scp_v0s_allow_connection(struct SCP_CONNECTION *c, SCP_DISPLAY d, const tui8 *guid)
 {
+    int msg_size;
+
+    msg_size = guid == 0 ? 14 : 14 + 16;
     out_uint32_be(c->out_s, 0);  /* version */
-    out_uint32_be(c->out_s, 14); /* size */
+    out_uint32_be(c->out_s, msg_size); /* size */
     out_uint16_be(c->out_s, 3);  /* cmd */
     out_uint16_be(c->out_s, 1);  /* data */
     out_uint16_be(c->out_s, d);  /* data */
+    if (msg_size > 14)
+    {
+        out_uint8a(c->out_s, guid, 16);
+    }
     s_mark_end(c->out_s);
 
     if (0 != scp_tcp_force_send(c->in_sck, c->out_s->data, c->out_s->end - c->out_s->data))

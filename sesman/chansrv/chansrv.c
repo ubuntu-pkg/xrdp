@@ -17,6 +17,10 @@
  * limitations under the License.
  */
 
+#if defined(HAVE_CONFIG_H)
+#include <config_ac.h>
+#endif
+
 #include "arch.h"
 #include "os_calls.h"
 #include "thread_calls.h"
@@ -28,12 +32,12 @@
 #include "devredir.h"
 #include "list.h"
 #include "file.h"
-#include "file_loc.h"
 #include "log.h"
 #include "rail.h"
 #include "xcommon.h"
 #include "chansrv_fuse.h"
 #include "drdynvc.h"
+#include "xrdp_sockets.h"
 
 static struct trans *g_lis_trans = 0;
 static struct trans *g_con_trans = 0;
@@ -89,7 +93,7 @@ static struct timeout_obj *g_timeout_head = 0;
 static struct timeout_obj *g_timeout_tail = 0;
 
 /*****************************************************************************/
-int APP_CC
+int
 add_timeout(int msoffset, void (*callback)(void *data), void *data)
 {
     struct timeout_obj *tobj;
@@ -115,7 +119,7 @@ add_timeout(int msoffset, void (*callback)(void *data), void *data)
 }
 
 /*****************************************************************************/
-static int APP_CC
+static int
 get_timeout(int *timeout)
 {
     struct timeout_obj *tobj;
@@ -161,7 +165,7 @@ get_timeout(int *timeout)
 }
 
 /*****************************************************************************/
-static int APP_CC
+static int
 check_timeout(void)
 {
     struct timeout_obj *tobj;
@@ -215,7 +219,7 @@ check_timeout(void)
 }
 
 /*****************************************************************************/
-int DEFAULT_CC
+int
 g_is_term(void)
 {
     return g_is_wait_obj_set(g_term_event);
@@ -224,7 +228,7 @@ g_is_term(void)
 /*****************************************************************************/
 /* add data to chan_item, on its way to the client */
 /* returns error */
-static int APP_CC
+static int
 add_data_to_chan_item(struct chan_item *chan_item, char *data, int size)
 {
     struct stream *s;
@@ -253,7 +257,7 @@ add_data_to_chan_item(struct chan_item *chan_item, char *data, int size)
 
 /*****************************************************************************/
 /* returns error */
-static int APP_CC
+static int
 send_data_from_chan_item(struct chan_item *chan_item)
 {
     struct stream *s;
@@ -323,7 +327,7 @@ send_data_from_chan_item(struct chan_item *chan_item)
 
 /*****************************************************************************/
 /* returns error */
-static int APP_CC
+static int
 check_chan_items(void)
 {
     int index;
@@ -341,7 +345,7 @@ check_chan_items(void)
 
 /*****************************************************************************/
 /* returns error */
-int APP_CC
+int
 send_channel_data(int chan_id, char *data, int size)
 {
     int index;
@@ -371,7 +375,7 @@ send_channel_data(int chan_id, char *data, int size)
 
 /*****************************************************************************/
 /* returns error */
-int APP_CC
+int
 send_rail_drawing_orders(char* data, int size)
 {
     LOGM((LOG_LEVEL_DEBUG, "chansrv::send_rail_drawing_orders: size %d", size));
@@ -396,7 +400,7 @@ send_rail_drawing_orders(char* data, int size)
 
 /*****************************************************************************/
 /* returns error */
-static int APP_CC
+static int
 send_init_response_message(void)
 {
     struct stream *s = (struct stream *)NULL;
@@ -419,7 +423,7 @@ send_init_response_message(void)
 
 /*****************************************************************************/
 /* returns error */
-static int APP_CC
+static int
 send_channel_setup_response_message(void)
 {
     struct stream *s = (struct stream *)NULL;
@@ -442,7 +446,7 @@ send_channel_setup_response_message(void)
 
 /*****************************************************************************/
 /* returns error */
-static int APP_CC
+static int
 send_channel_data_response_message(void)
 {
     struct stream *s = (struct stream *)NULL;
@@ -465,7 +469,7 @@ send_channel_data_response_message(void)
 
 /*****************************************************************************/
 /* returns error */
-static int APP_CC
+static int
 process_message_init(struct stream *s)
 {
     LOGM((LOG_LEVEL_DEBUG, "process_message_init:"));
@@ -474,7 +478,7 @@ process_message_init(struct stream *s)
 
 /*****************************************************************************/
 /* returns error */
-static int APP_CC
+static int
 process_message_channel_setup(struct stream *s)
 {
     int num_chans;
@@ -600,7 +604,7 @@ process_message_channel_setup(struct stream *s)
 
 /*****************************************************************************/
 /* returns error */
-static int APP_CC
+static int
 process_message_channel_data(struct stream *s)
 {
     int chan_id = 0;
@@ -679,7 +683,7 @@ process_message_channel_data(struct stream *s)
 
 /*****************************************************************************/
 /* returns error */
-static int APP_CC
+static int
 process_message_channel_data_response(struct stream *s)
 {
     LOG(10, ("process_message_channel_data_response:"));
@@ -689,7 +693,7 @@ process_message_channel_data_response(struct stream *s)
 
 /*****************************************************************************/
 /* returns error */
-static int APP_CC
+static int
 process_message(void)
 {
     struct stream *s = (struct stream *)NULL;
@@ -751,7 +755,7 @@ process_message(void)
 
 /*****************************************************************************/
 /* returns error */
-int DEFAULT_CC
+int
 my_trans_data_in(struct trans *trans)
 {
     struct stream *s = (struct stream *)NULL;
@@ -787,7 +791,7 @@ my_trans_data_in(struct trans *trans)
  * called when WTSVirtualChannelWrite() is invoked in xrdpapi.c
  *
  ******************************************************************************/
-int DEFAULT_CC
+int
 my_api_trans_data_in(struct trans *trans)
 {
     struct stream        *s;
@@ -881,7 +885,7 @@ my_api_trans_data_in(struct trans *trans)
 }
 
 /*****************************************************************************/
-int DEFAULT_CC
+int
 my_trans_conn_in(struct trans *trans, struct trans *new_trans)
 {
     if (trans == 0)
@@ -918,7 +922,7 @@ my_trans_conn_in(struct trans *trans, struct trans *new_trans)
  * called when WTSVirtualChannelOpenEx is invoked in xrdpapi.c
  *
  ******************************************************************************/
-int DEFAULT_CC
+int
 my_api_trans_conn_in(struct trans *trans, struct trans *new_trans)
 {
     struct xrdp_api_data *ad;
@@ -1012,7 +1016,7 @@ my_api_trans_conn_in(struct trans *trans, struct trans *new_trans)
 }
 
 /*****************************************************************************/
-static int APP_CC
+static int
 setup_listen(void)
 {
     char port[256];
@@ -1050,7 +1054,7 @@ setup_listen(void)
 }
 
 /*****************************************************************************/
-static int APP_CC
+static int
 setup_api_listen(void)
 {
     char port[256];
@@ -1231,7 +1235,7 @@ channel_thread_loop(void *in_val)
 }
 
 /*****************************************************************************/
-void DEFAULT_CC
+void
 term_signal_handler(int sig)
 {
     LOGM((LOG_LEVEL_INFO, "term_signal_handler: got signal %d", sig));
@@ -1239,14 +1243,14 @@ term_signal_handler(int sig)
 }
 
 /*****************************************************************************/
-void DEFAULT_CC
+void
 nil_signal_handler(int sig)
 {
     LOGM((LOG_LEVEL_INFO, "nil_signal_handler: got signal %d", sig));
 }
 
 /*****************************************************************************/
-void DEFAULT_CC
+void
 child_signal_handler(int sig)
 {
     int pid;
@@ -1266,7 +1270,7 @@ child_signal_handler(int sig)
 }
 
 /*****************************************************************************/
-void DEFAULT_CC
+void
 segfault_signal_handler(int sig)
 {
     LOG(0, ("segfault_signal_handler: entered......."));
@@ -1275,7 +1279,7 @@ segfault_signal_handler(int sig)
 }
 
 /*****************************************************************************/
-static int APP_CC
+static int
 get_display_num_from_display(char *display_text)
 {
     int index;
@@ -1334,7 +1338,7 @@ get_display_num_from_display(char *display_text)
 }
 
 /*****************************************************************************/
-int APP_CC
+int
 main_cleanup(void)
 {
     g_delete_wait_obj(g_term_event);
@@ -1346,7 +1350,7 @@ main_cleanup(void)
 }
 
 /*****************************************************************************/
-static int APP_CC
+static int
 read_ini(void)
 {
     char filename[256];
@@ -1387,7 +1391,7 @@ read_ini(void)
 }
 
 /*****************************************************************************/
-static int APP_CC
+static int
 get_log_path(char *path, int bytes)
 {
     char* log_path;
@@ -1439,7 +1443,7 @@ get_log_path(char *path, int bytes)
 }
 
 /*****************************************************************************/
-static enum logLevels APP_CC
+static enum logLevels
 get_log_level(const char* level_str, enum logLevels default_level)
 {
     static const char* levels[] = {
@@ -1447,7 +1451,8 @@ get_log_level(const char* level_str, enum logLevels default_level)
         "LOG_LEVEL_ERROR",
         "LOG_LEVEL_WARNING",
         "LOG_LEVEL_INFO",
-        "LOG_LEVEL_DEBUG"
+        "LOG_LEVEL_DEBUG",
+        "LOG_LEVEL_TRACE"
     };
     unsigned int i;
 
@@ -1466,7 +1471,7 @@ get_log_level(const char* level_str, enum logLevels default_level)
 }
 
 /*****************************************************************************/
-static int APP_CC
+static int
 run_exec(void)
 {
     int pid;
@@ -1493,7 +1498,7 @@ run_exec(void)
 }
 
 /*****************************************************************************/
-int DEFAULT_CC
+int
 main(int argc, char **argv)
 {
     tbus waiters[4];
@@ -1518,13 +1523,17 @@ main(int argc, char **argv)
 
     read_ini();
     pid = g_getpid();
+    display_text = g_getenv("DISPLAY");
 
-    log_level = get_log_level(g_getenv("CHANSRV_LOG_LEVEL"), LOG_LEVEL_ERROR);
+    if (display_text)
+        get_display_num_from_display(display_text);
+
+    log_level = get_log_level(g_getenv("CHANSRV_LOG_LEVEL"), LOG_LEVEL_INFO);
 
     /* starting logging subsystem */
     g_memset(&logconfig, 0, sizeof(struct log_config));
     logconfig.program_name = "xrdp-chansrv";
-    g_snprintf(log_file, 255, "%s/xrdp-chansrv.log", log_path);
+    g_snprintf(log_file, 255, "%s/xrdp-chansrv.%d.log", log_path, g_display_num);
     g_writeln("chansrv::main: using log file [%s]", log_file);
 
     if (g_file_exist(log_file))
@@ -1567,11 +1576,7 @@ main(int argc, char **argv)
     g_signal_child_stop(child_signal_handler); /* SIGCHLD */
     g_signal_segfault(segfault_signal_handler);
 
-    display_text = g_getenv("DISPLAY");
     LOGM((LOG_LEVEL_INFO, "main: DISPLAY env var set to %s", display_text));
-
-    if (display_text)
-        get_display_num_from_display(display_text);
 
     if (g_display_num == 0)
     {
@@ -1636,8 +1641,8 @@ main(int argc, char **argv)
  *
  * @return unused slot index on success, -1 on failure
  ******************************************************************************/
-int APP_CC
-find_empty_slot_in_dvc_channels()
+int
+find_empty_slot_in_dvc_channels(void)
 {
     int i;
 
@@ -1659,14 +1664,15 @@ find_empty_slot_in_dvc_channels()
  *
  * @return xrdp_api_data struct containing dvc_chan_id or NULL on failure
  ******************************************************************************/
-struct xrdp_api_data *APP_CC
+struct xrdp_api_data *
 struct_from_dvc_chan_id(tui32 dvc_chan_id)
 {
     int i;
 
     for (i = 0; i < MAX_DVC_CHANNELS; i++)
     {
-        if (g_dvc_channels[i]->dvc_chan_id >= 0 &&
+        if (g_dvc_channels[i] != NULL &&
+            g_dvc_channels[i]->dvc_chan_id >= 0 &&
             (tui32) g_dvc_channels[i]->dvc_chan_id == dvc_chan_id)
         {
             return g_dvc_channels[i];
@@ -1683,7 +1689,8 @@ remove_struct_with_chan_id(tui32 dvc_chan_id)
 
     for (i = 0; i < MAX_DVC_CHANNELS; i++)
     {
-        if (g_dvc_channels[i]->dvc_chan_id >= 0 &&
+        if (g_dvc_channels[i] != NULL &&
+            g_dvc_channels[i]->dvc_chan_id >= 0 &&
             (tui32) g_dvc_channels[i]->dvc_chan_id == dvc_chan_id)
         {
             g_dvc_channels[i] = NULL;

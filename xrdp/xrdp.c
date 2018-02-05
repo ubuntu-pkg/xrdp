@@ -18,6 +18,10 @@
  * main program
  */
 
+#if defined(HAVE_CONFIG_H)
+#include <config_ac.h>
+#endif
+
 #include "xrdp.h"
 #include "log.h"
 
@@ -45,7 +49,7 @@ static long (*g_sync_func)(long param1, long param2);
 /* This function is used to run a function from the main thread.
    Sync_func is the function pointer that will run from main thread
    The function can have two long in parameters and must return long */
-long APP_CC
+long
 g_xrdp_sync(long (*sync_func)(long param1, long param2), long sync_param1,
             long sync_param2)
 {
@@ -100,7 +104,7 @@ g_xrdp_sync(long (*sync_func)(long param1, long param2), long sync_param1,
 }
 
 /*****************************************************************************/
-void DEFAULT_CC
+void
 xrdp_shutdown(int sig)
 {
     tbus threadid;
@@ -116,15 +120,19 @@ xrdp_shutdown(int sig)
 }
 
 /*****************************************************************************/
-void DEFAULT_CC
+void
 xrdp_child(int sig)
 {
-    g_waitchild();
+    int safety;
+
+    for (safety = 0; (g_waitchild() >= 0) && (safety <= 10); safety++)
+    {
+    }
 }
 
 /*****************************************************************************/
 /* called in child just after fork */
-int APP_CC
+int
 xrdp_child_fork(void)
 {
     int pid;
@@ -142,14 +150,14 @@ xrdp_child_fork(void)
 }
 
 /*****************************************************************************/
-int DEFAULT_CC
+int
 g_is_term(void)
 {
     return g_is_wait_obj_set(g_term_event);
 }
 
 /*****************************************************************************/
-void APP_CC
+void
 g_set_term(int in_val)
 {
     if (in_val)
@@ -163,21 +171,21 @@ g_set_term(int in_val)
 }
 
 /*****************************************************************************/
-tbus APP_CC
+tbus
 g_get_term_event(void)
 {
     return g_term_event;
 }
 
 /*****************************************************************************/
-tbus APP_CC
+tbus
 g_get_sync_event(void)
 {
     return g_sync_event;
 }
 
 /*****************************************************************************/
-void DEFAULT_CC
+void
 pipe_sig(int sig_num)
 {
     /* do nothing */
@@ -187,7 +195,7 @@ pipe_sig(int sig_num)
 /*****************************************************************************/
 /*Some function must be called from the main thread.
  if g_sync_command==THREAD_WAITING a function is waiting to be processed*/
-void APP_CC
+void
 g_process_waiting_function(void)
 {
     tc_mutex_lock(g_sync_mutex);
@@ -209,7 +217,7 @@ g_process_waiting_function(void)
 }
 
 /*****************************************************************************/
-int APP_CC
+int
 xrdp_process_params(int argc, char **argv,
                     struct xrdp_startup_params *startup_params)
 {
@@ -246,6 +254,7 @@ xrdp_process_params(int argc, char **argv,
         }
         else if ((g_strncasecmp(option, "-nodaemon", 255) == 0) ||
                  (g_strncasecmp(option, "--nodaemon", 255) == 0) ||
+                 (g_strncasecmp(option, "-n", 255) == 0) ||
                  (g_strncasecmp(option, "-nd", 255) == 0) ||
                  (g_strncasecmp(option, "--nd", 255) == 0) ||
                  (g_strncasecmp(option, "-ns", 255) == 0) ||
@@ -355,9 +364,10 @@ xrdp_sanity_check(void)
 }
 
 /*****************************************************************************/
-int DEFAULT_CC
+int
 main(int argc, char **argv)
 {
+    int exit_status = 0;
     int test;
     char cfg_file[256];
     enum logReturns error;
@@ -401,11 +411,11 @@ main(int argc, char **argv)
         g_writeln("See http://www.xrdp.org for more information.");
         g_writeln("%s", "");
         g_writeln("Usage: xrdp [options]");
-        g_writeln("   --help: show help");
-        g_writeln("   --nodaemon: don't fork into background");
-        g_writeln("   --kill: shut down xrdp");
-        g_writeln("   --port: tcp listen port");
-        g_writeln("   --fork: fork on new connection");
+        g_writeln("   -h, --help       show help");
+        g_writeln("   -n, --nodaemon   don't fork into background");
+        g_writeln("   -k, --kill       shut down xrdp");
+        g_writeln("   -p, --port       tcp listen port");
+        g_writeln("   -f, --fork       fork on new connection");
         g_writeln("%s", "");
         g_deinit();
         g_exit(0);
@@ -544,7 +554,17 @@ main(int argc, char **argv)
 
         if (0 != pid)
         {
-            g_writeln("process %d started ok", pid);
+            /* if can't listen, exit with failure status */
+            if (xrdp_listen_test() != 0)
+            {
+                log_message(LOG_LEVEL_ERROR, "Failed to start xrdp daemon, "
+                                             "possibly address already in use.");
+                g_deinit();
+                /* must exit with failure status,
+                   or systemd cannot detect xrdp daemon couldn't start properly */
+                g_exit(1);
+            }
+            g_writeln("daemon process %d started ok", pid);
             /* exit, this is the main process */
             g_deinit();
             g_exit(0);
@@ -615,7 +635,7 @@ main(int argc, char **argv)
     }
 
     g_listen->startup_params = startup_params;
-    xrdp_listen_main_loop(g_listen);
+    exit_status = xrdp_listen_main_loop(g_listen);
     xrdp_listen_delete(g_listen);
     tc_mutex_delete(g_sync_mutex);
     tc_mutex_delete(g_sync1_mutex);
@@ -630,6 +650,17 @@ main(int argc, char **argv)
     }
 
     g_free(startup_params);
+    log_end();
     g_deinit();
+
+    if (exit_status == 0)
+    {
+        g_exit(0);
+    }
+    else
+    {
+        g_exit(1);
+    }
+
     return 0;
 }

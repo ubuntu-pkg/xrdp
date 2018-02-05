@@ -68,6 +68,7 @@ typedef bool pa_bool_t;
 #endif
 
 #include "module-xrdp-sink-symdef.h"
+#include "../../../common/xrdp_sockets.h"
 
 PA_MODULE_AUTHOR("Jay Sorg");
 PA_MODULE_DESCRIPTION("xrdp sink");
@@ -84,7 +85,6 @@ PA_MODULE_USAGE(
 #define DEFAULT_SINK_NAME "xrdp-sink"
 #define BLOCK_USEC 30000
 //#define BLOCK_USEC (PA_USEC_PER_SEC * 2)
-#define CHANSRV_PORT_STR "/tmp/.xrdp/xrdp_chansrv_audio_out_socket_%d"
 
 struct userdata {
     pa_core *core;
@@ -171,12 +171,12 @@ static void sink_update_requested_latency_cb(pa_sink *s) {
 
     u->block_usec = BLOCK_USEC;
     //u->block_usec = pa_sink_get_requested_latency_within_thread(s);
-    pa_log("1 block_usec %d", u->block_usec);
+    pa_log("1 block_usec %llu", (unsigned long long) u->block_usec);
 
     u->got_max_latency = 0;
     if (u->block_usec == (pa_usec_t) -1) {
         u->block_usec = s->thread_info.max_latency;
-        pa_log_debug("2 block_usec %d", u->block_usec);
+        pa_log_debug("2 block_usec %llu", (unsigned long long) u->block_usec);
         u->got_max_latency = 1;
     }
 
@@ -292,6 +292,7 @@ static int lsend(int fd, char *data, int bytes) {
 
 static int data_send(struct userdata *u, pa_memchunk *chunk) {
     char *data;
+    char *socket_dir;
     int bytes;
     int sent;
     int fd;
@@ -308,7 +309,13 @@ static int data_send(struct userdata *u, pa_memchunk *chunk) {
         memset(&s, 0, sizeof(s));
         s.sun_family = AF_UNIX;
         bytes = sizeof(s.sun_path) - 1;
-        snprintf(s.sun_path, bytes, CHANSRV_PORT_STR, u->display_num);
+        socket_dir = getenv("XRDP_SOCKET_PATH");
+        if (socket_dir == NULL || socket_dir[0] == '\0')
+        {
+            socket_dir = "/tmp/.xrdp";
+        }
+        snprintf(s.sun_path, bytes, "%s/" CHANSRV_PORT_OUT_BASE_STR,
+                 socket_dir, u->display_num);
         pa_log_debug("trying to connect to %s", s.sun_path);
         if (connect(fd, (struct sockaddr *)&s,
                     sizeof(struct sockaddr_un)) != 0) {
@@ -390,7 +397,7 @@ static void process_render(struct userdata *u, pa_usec_t now) {
     if (u->got_max_latency) {
         return;
     }
-    pa_log_debug("process_render: u->block_usec %d", u->block_usec);
+    pa_log_debug("process_render: u->block_usec %llu", (unsigned long long) u->block_usec);
     while (u->timestamp < now + u->block_usec) {
         request_bytes = u->sink->thread_info.max_request;
         request_bytes = MIN(request_bytes, 16 * 1024);
@@ -528,7 +535,7 @@ int pa__init(pa_module*m) {
     pa_sink_set_rtpoll(u->sink, u->rtpoll);
 
     u->block_usec = BLOCK_USEC;
-    pa_log_debug("3 block_usec %d", u->block_usec);
+    pa_log_debug("3 block_usec %llu", (unsigned long long) u->block_usec);
     nbytes = pa_usec_to_bytes(u->block_usec, &u->sink->sample_spec);
     pa_sink_set_max_rewind(u->sink, nbytes);
     pa_sink_set_max_request(u->sink, nbytes);

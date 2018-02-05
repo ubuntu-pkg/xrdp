@@ -1,7 +1,28 @@
 EXTRA_DIST = \
+   keymap-names.txt \
    xrdp.sh \
-   xrdp-sesman.service \
-   xrdp.service
+   xrdp-sesman.service.in \
+   xrdp.service.in
+
+#
+# substitute directories in service file
+#
+CLEANFILES= \
+  xrdp-sesman.service \
+  xrdp.service
+
+SUBST_VARS = sed \
+   -e 's|@sbindir[@]|$(sbindir)|g' \
+   -e 's|@sysconfdir[@]|$(sysconfdir)|g' \
+   -e 's|@localstatedir[@]|$(localstatedir)|g'
+
+subst_verbose = $(subst_verbose_@AM_V@)
+subst_verbose_ = $(subst_verbose_@AM_DEFAULT_V@)
+subst_verbose_0 = @echo "  SUBST    $@";
+
+SUFFIXES = .in
+.in:
+	$(subst_verbose)$(SUBST_VARS) $< > $@
 
 #
 # files for all platforms
@@ -16,6 +37,7 @@ dist_startscript_DATA = \
   km-0000040c.ini \
   km-00000410.ini \
   km-00000411.ini \
+  km-00000412.ini \
   km-00000414.ini \
   km-00000415.ini \
   km-00000416.ini \
@@ -26,7 +48,8 @@ dist_startscript_DATA = \
   km-0000080c.ini \
   km-00000813.ini \
   km-00000816.ini \
-  km-0000100c.ini 
+  km-0000100c.ini \
+  km-00010409.ini
 
 #
 # platform specific files
@@ -38,7 +61,7 @@ SUBDIRS += \
   pulse
 dist_startscript_SCRIPTS = xrdp.sh
 if HAVE_SYSTEMD
-dist_systemdsystemunit_DATA = \
+systemdsystemunit_DATA = \
   xrdp-sesman.service \
   xrdp.service
 else
@@ -57,6 +80,7 @@ endif
 
 #
 # install-data-hook for each platform
+# TODO: subst these directories as well as service files
 #
 if LINUX
 # must be tab below

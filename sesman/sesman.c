@@ -24,6 +24,10 @@
  *
  */
 
+#if defined(HAVE_CONFIG_H)
+#include <config_ac.h>
+#endif
+
 #include "sesman.h"
 
 int g_sck;
@@ -34,18 +38,58 @@ struct config_sesman *g_cfg; /* defined in config.h */
 tintptr g_term_event = 0;
 
 /******************************************************************************/
+int sesman_listen_test(struct config_sesman *cfg)
+{
+    int error;
+    int sck;
+    int rv = 0;
+
+    sck = g_tcp_socket();
+    if (sck < 0)
+    {
+        return 1;
+    }
+
+    log_message(LOG_LEVEL_DEBUG, "Testing if xrdp-sesman can listen on %s port %s.",
+                                 cfg->listen_address, cfg->listen_port);
+    g_tcp_set_non_blocking(sck);
+    error = scp_tcp_bind(sck, cfg->listen_address, cfg->listen_port);
+    if (error == 0)
+    {
+        /* try to listen */
+        error = g_tcp_listen(sck);
+
+        if (error == 0)
+        {
+            /* if listen succeeded, stop listen immediately */
+            g_sck_close(sck);
+        }
+        else
+        {
+            rv = 1;
+        }
+    }
+    else
+    {
+        rv = 1;
+    }
+
+    return rv;
+}
+/******************************************************************************/
 /**
  *
  * @brief Starts sesman main loop
  *
  */
-static void DEFAULT_CC
+int
 sesman_main_loop(void)
 {
     int in_sck;
     int error;
     int robjs_count;
     int cont;
+    int rv = 0;
     tbus sck_obj;
     tbus robjs[8];
 
@@ -53,7 +97,7 @@ sesman_main_loop(void)
     if (g_sck < 0)
     {
         log_message(LOG_LEVEL_ERROR, "error opening socket, g_tcp_socket() failed...");
-        return;
+        return 1;
     }
 
     g_tcp_set_non_blocking(g_sck);
@@ -119,6 +163,7 @@ sesman_main_loop(void)
         {
             log_message(LOG_LEVEL_ERROR, "listen error %d (%s)",
                         g_get_errno(), g_get_strerror());
+            rv = 1;
         }
     }
     else
@@ -126,12 +171,27 @@ sesman_main_loop(void)
         log_message(LOG_LEVEL_ERROR, "bind error on "
                     "port '%s': %d (%s)", g_cfg->listen_port,
                     g_get_errno(), g_get_strerror());
+        rv = 1;
     }
     g_tcp_close(g_sck);
+    return rv;
 }
 
 /******************************************************************************/
-int DEFAULT_CC
+void
+print_usage(int retcode)
+{
+    g_printf("xrdp-sesman - xrdp session manager\n\n");
+    g_printf("Usage: xrdp-sesman [options]\n");
+    g_printf("   -n, --nodaemon   run as foreground process\n");
+    g_printf("   -k, --kill       kill running xrdp-sesman\n");
+    g_printf("   -h, --help       show this help\n");
+    g_deinit();
+    g_exit(retcode);
+}
+
+/******************************************************************************/
+int
 main(int argc, char **argv)
 {
     int fd;
@@ -166,16 +226,7 @@ main(int argc, char **argv)
                              (0 == g_strcasecmp(argv[1], "-help")) ||
                              (0 == g_strcasecmp(argv[1], "-h"))))
     {
-        /* help screen */
-        g_printf("sesman - xrdp session manager\n\n");
-        g_printf("usage: sesman [command]\n\n");
-        g_printf("command can be one of the following:\n");
-        g_printf("-n, -ns, --nodaemon  starts sesman in foreground\n");
-        g_printf("-k, --kill           kills running sesman\n");
-        g_printf("-h, --help           shows this help\n");
-        g_printf("if no command is specified, sesman is started in background");
-        g_deinit();
-        g_exit(0);
+        print_usage(0);
     }
     else if ((2 == argc) && ((0 == g_strcasecmp(argv[1], "--kill")) ||
                              (0 == g_strcasecmp(argv[1], "-kill")) ||
@@ -229,16 +280,13 @@ main(int argc, char **argv)
     else
     {
         /* there's something strange on the command line */
-        g_printf("sesman - xrdp session manager\n\n");
-        g_printf("error: invalid command line\n");
-        g_printf("usage: sesman [ --nodaemon | --kill | --help ]\n");
-        g_deinit();
-        g_exit(1);
+        g_printf("Error: invalid command line arguments\n\n");
+        print_usage(1);
     }
 
     if (g_file_exist(pid_file))
     {
-        g_printf("sesman is already running.\n");
+        g_printf("xrdp-sesman is already running.\n");
         g_printf("if it's not running, try removing ");
         g_printf("%s", pid_file);
         g_printf("\n");
@@ -295,9 +343,16 @@ main(int argc, char **argv)
     if (daemon)
     {
         /* start of daemonizing code */
-        g_pid = g_fork();
+        if (sesman_listen_test(g_cfg) != 0)
+        {
 
-        if (0 != g_pid)
+            log_message(LOG_LEVEL_ERROR, "Failed to start xrdp-sesman daemon, "
+                                         "possibly address already in use.");
+            g_deinit();
+            g_exit(1);
+        }
+
+        if (0 != g_fork())
         {
             g_deinit();
             g_exit(0);
@@ -361,7 +416,10 @@ main(int argc, char **argv)
     log_message(LOG_LEVEL_INFO,
                 "starting xrdp-sesman with pid %d", g_pid);
 
-    /* make sure the /tmp/.X11-unix directory exist */
+    /* make sure the socket directory exists */
+    g_mk_socket_path("xrdp-sesman");
+
+    /* make sure the /tmp/.X11-unix directory exists */
     if (!g_directory_exist("/tmp/.X11-unix"))
     {
         if (!g_create_dir("/tmp/.X11-unix"))
@@ -375,7 +433,7 @@ main(int argc, char **argv)
     g_snprintf(text, 255, "xrdp_sesman_%8.8x_main_term", g_pid);
     g_term_event = g_create_wait_obj(text);
 
-    sesman_main_loop();
+    error = sesman_main_loop();
 
     /* clean up PID file on exit */
     if (daemon)
@@ -391,5 +449,6 @@ main(int argc, char **argv)
     }
 
     g_deinit();
+    g_exit(error);
     return 0;
 }

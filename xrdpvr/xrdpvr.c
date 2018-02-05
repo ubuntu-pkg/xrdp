@@ -21,6 +21,10 @@
  *
  */
 
+#if defined(HAVE_CONFIG_H)
+#include <config_ac.h>
+#endif
+
 #include "xrdpvr.h"
 #include "xrdpvr_internal.h"
 
@@ -911,7 +915,7 @@ xrdpvr_write_to_client(void *channel, STREAM *s)
         rv = WTSVirtualChannelWrite(channel, &s->data[index], bytes_to_send,
                                     &bytes_written);
 
-        if (rv < 0)
+        if (rv == 0)
         {
             return -1;
         }

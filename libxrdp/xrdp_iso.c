@@ -19,6 +19,10 @@
  * iso layer
  */
 
+#if defined(HAVE_CONFIG_H)
+#include <config_ac.h>
+#endif
+
 #include "libxrdp.h"
 #include "log.h"
 
@@ -33,7 +37,6 @@
 
 /*****************************************************************************/
 struct xrdp_iso *
-APP_CC
 xrdp_iso_create(struct xrdp_mcs *owner, struct trans *trans)
 {
     struct xrdp_iso *self;
@@ -47,7 +50,7 @@ xrdp_iso_create(struct xrdp_mcs *owner, struct trans *trans)
 }
 
 /*****************************************************************************/
-void APP_CC
+void
 xrdp_iso_delete(struct xrdp_iso *self)
 {
     if (self == 0)
@@ -60,7 +63,7 @@ xrdp_iso_delete(struct xrdp_iso *self)
 
 /*****************************************************************************/
 /* returns error */
-static int APP_CC
+static int
 xrdp_iso_negotiate_security(struct xrdp_iso *self)
 {
     int rv = 0;
@@ -75,12 +78,12 @@ xrdp_iso_negotiate_security(struct xrdp_iso *self)
         case PROTOCOL_SSL:
             if (self->requestedProtocol & PROTOCOL_SSL)
             {
-
-                if(!g_file_exist(client_info->certificate) ||
-                   !g_file_exist(client_info->key_file))
+                if (!g_file_readable(client_info->certificate) ||
+                    !g_file_readable(client_info->key_file))
                 {
-                    /* certificate file doesn't exist */
-                    LLOGLN(0, ("xrdp_iso_negotiate_security: TLS certificate not found on server"));
+                    /* certificate or privkey is not readable */
+                    log_message(LOG_LEVEL_DEBUG, "No readable certificates or "
+                                "private keys, cannot accept TLS connections");
                     self->failureCode = SSL_CERT_NOT_ON_SERVER;
                     rv = 1; /* error */
                 }
@@ -99,8 +102,8 @@ xrdp_iso_negotiate_security(struct xrdp_iso *self)
         case PROTOCOL_HYBRID_EX:
         default:
             if ((self->requestedProtocol & PROTOCOL_SSL) &&
-                g_file_exist(client_info->certificate) &&
-                g_file_exist(client_info->key_file))
+                g_file_readable(client_info->certificate) &&
+                g_file_readable(client_info->key_file))
             {
                 /* that's a patch since we don't support CredSSP for now */
                 self->selectedProtocol = PROTOCOL_SSL;
@@ -119,7 +122,7 @@ xrdp_iso_negotiate_security(struct xrdp_iso *self)
 
 /*****************************************************************************/
 /* returns error */
-static int APP_CC
+static int
 xrdp_iso_process_rdp_neg_req(struct xrdp_iso *self, struct stream *s)
 {
     int flags;
@@ -151,7 +154,7 @@ xrdp_iso_process_rdp_neg_req(struct xrdp_iso *self, struct stream *s)
 }
 /*****************************************************************************/
 /* returns error */
-static int APP_CC
+static int
 xrdp_iso_recv_msg(struct xrdp_iso *self, struct stream *s, int *code, int *len)
 {
     int ver;
@@ -212,7 +215,7 @@ xrdp_iso_recv_msg(struct xrdp_iso *self, struct stream *s, int *code, int *len)
 
 /*****************************************************************************/
 /* returns error */
-int APP_CC
+int
 xrdp_iso_recv(struct xrdp_iso *self, struct stream *s)
 {
     int code;
@@ -236,7 +239,7 @@ xrdp_iso_recv(struct xrdp_iso *self, struct stream *s)
     return 0;
 }
 /*****************************************************************************/
-static int APP_CC
+static int
 xrdp_iso_send_cc(struct xrdp_iso *self)
 {
     struct stream *s;
@@ -300,7 +303,7 @@ xrdp_iso_send_cc(struct xrdp_iso *self)
 }
 /*****************************************************************************/
 /* returns error */
-int APP_CC
+int
 xrdp_iso_incoming(struct xrdp_iso *self)
 {
     int rv = 0;
@@ -394,7 +397,7 @@ xrdp_iso_incoming(struct xrdp_iso *self)
 
 /*****************************************************************************/
 /* returns error */
-int APP_CC
+int
 xrdp_iso_init(struct xrdp_iso *self, struct stream *s)
 {
     init_stream(s, 8192 * 4); /* 32 KB */
@@ -404,7 +407,7 @@ xrdp_iso_init(struct xrdp_iso *self, struct stream *s)
 
 /*****************************************************************************/
 /* returns error */
-int APP_CC
+int
 xrdp_iso_send(struct xrdp_iso *self, struct stream *s)
 {
     int len;

@@ -24,6 +24,10 @@ RDP 6.0 Bitmap Compression
 http://msdn.microsoft.com/en-us/library/cc241877.aspx
 */
 
+#if defined(HAVE_CONFIG_H)
+#include <config_ac.h>
+#endif
+
 #include "libxrdp.h"
 
 #define FLAGS_RLE     0x10
@@ -37,7 +41,7 @@ http://msdn.microsoft.com/en-us/library/cc241877.aspx
 
 /*****************************************************************************/
 /* split RGB */
-static int APP_CC
+static int
 fsplit3(char *in_data, int start_line, int width, int e,
         char *r_data, char *g_data, char *b_data)
 {
@@ -107,7 +111,7 @@ fsplit3(char *in_data, int start_line, int width, int e,
         }
         start_line--;
         cy++;
-        if (out_index > 64 * 64)
+        if (out_index + width + e > 64 * 64)
         {
             break;
         }
@@ -117,7 +121,7 @@ fsplit3(char *in_data, int start_line, int width, int e,
 
 /*****************************************************************************/
 /* split ARGB */
-static int APP_CC
+static int
 fsplit4(char *in_data, int start_line, int width, int e,
         char *a_data, char *r_data, char *g_data, char *b_data)
 {
@@ -195,7 +199,7 @@ fsplit4(char *in_data, int start_line, int width, int e,
         }
         start_line--;
         cy++;
-        if (out_index > 64 * 64)
+        if (out_index + width + e > 64 * 64)
         {
             break;
         }
@@ -214,7 +218,7 @@ do { \
 } while (0)
 
 /*****************************************************************************/
-static int APP_CC
+static int
 fdelta(char *in_plane, char *out_plane, int cx, int cy)
 {
     char delta;
@@ -246,7 +250,7 @@ fdelta(char *in_plane, char *out_plane, int cx, int cy)
 }
 
 /*****************************************************************************/
-static int APP_CC
+static int
 fout(int collen, int replen, char *colptr, struct stream *s)
 {
     int code;
@@ -311,7 +315,7 @@ fout(int collen, int replen, char *colptr, struct stream *s)
 }
 
 /*****************************************************************************/
-static int APP_CC
+static int
 fpack(char *plane, int cx, int cy, struct stream *s)
 {
     char *ptr8;
@@ -378,7 +382,7 @@ fpack(char *plane, int cx, int cy, struct stream *s)
 }
 
 /*****************************************************************************/
-static int APP_CC
+static int
 foutraw3(struct stream *s, int bytes, int header,
          char *r_data, char *g_data, char *b_data)
 {
@@ -392,7 +396,7 @@ foutraw3(struct stream *s, int bytes, int header,
 }
 
 /*****************************************************************************/
-static int APP_CC
+static int
 foutraw4(struct stream *s, int bytes, int header,
          char *a_data, char *r_data, char *g_data, char *b_data)
 {
@@ -408,7 +412,7 @@ foutraw4(struct stream *s, int bytes, int header,
 
 /*****************************************************************************/
 /* returns the number of lines compressed */
-int APP_CC
+int
 xrdp_bitmap32_compress(char *in_data, int width, int height,
                        struct stream *s, int bpp, int byte_limit,
                        int start_line, struct stream *temp_s,
@@ -422,6 +426,7 @@ xrdp_bitmap32_compress(char *in_data, int width, int height,
     char *sr_data;
     char *sg_data;
     char *sb_data;
+    char *hold_p;
     int a_bytes;
     int r_bytes;
     int g_bytes;
@@ -449,6 +454,7 @@ xrdp_bitmap32_compress(char *in_data, int width, int height,
     r_data = a_data + max_bytes;
     g_data = r_data + max_bytes;
     b_data = g_data + max_bytes;
+    hold_p = s->p;
 
     if (header & FLAGS_NOALPHA)
     {
@@ -459,35 +465,44 @@ xrdp_bitmap32_compress(char *in_data, int width, int height,
             fdelta(sr_data, r_data, cx, cy);
             fdelta(sg_data, g_data, cx, cy);
             fdelta(sb_data, b_data, cx, cy);
-            out_uint8(s, header);
-            r_bytes = fpack(r_data, cx, cy, s);
-            g_bytes = fpack(g_data, cx, cy, s);
-            b_bytes = fpack(b_data, cx, cy, s);
-            total_bytes = r_bytes + g_bytes + b_bytes;
-            if (1 + total_bytes > byte_limit)
+            while (cy > 0)
             {
-                /* failed */
-                LLOGLN(0, ("xrdp_bitmap32_compress: too big, rgb "
-                       "bytes %d %d %d total_bytes %d cx %d cy %d "
-                       "byte_limit %d", r_bytes, g_bytes, b_bytes,
-                       total_bytes, cx, cy, byte_limit));
-                return 0;
-            }
-            max_bytes = cx * cy * 3;
-            if (total_bytes > max_bytes)
-            {
-                /* raw is better */
-                LLOGLN(10, ("xrdp_bitmap32_compress: too big, rgb "
-                       "bytes %d %d %d total_bytes %d cx %d cy %d "
-                       "max_bytes %d", r_bytes, g_bytes, b_bytes,
-                       total_bytes, cx, cy, max_bytes));
-                init_stream(s, 0);
-                foutraw3(s, cx * cy, FLAGS_NOALPHA, sr_data, sg_data, sb_data);
+                s->p = hold_p;
+                out_uint8(s, header);
+                r_bytes = fpack(r_data, cx, cy, s);
+                g_bytes = fpack(g_data, cx, cy, s);
+                b_bytes = fpack(b_data, cx, cy, s);
+                max_bytes = cx * cy * 3;
+                total_bytes = r_bytes + g_bytes + b_bytes;
+                if (total_bytes > max_bytes)
+                {
+                    if (2 + max_bytes <= byte_limit)
+                    {
+                        s->p = hold_p;
+                        foutraw3(s, cx * cy, FLAGS_NOALPHA, sr_data, sg_data, sb_data);
+                        break;
+                    }
+                }
+                if (1 + total_bytes <= byte_limit)
+                {
+                    break;
+                }
+                cy--;
             }
         }
         else
         {
-            foutraw3(s, cx * cy, FLAGS_NOALPHA, sr_data, sg_data, sb_data);
+            while (cy > 0)
+            {
+                max_bytes = cx * cy * 3;
+                if (2 + max_bytes <= byte_limit)
+                {
+                    s->p = hold_p;
+                    foutraw3(s, cx * cy, FLAGS_NOALPHA, sr_data, sg_data, sb_data);
+                    break;
+                }
+                cy--;
+            }
         }
     }
     else
@@ -500,36 +515,45 @@ xrdp_bitmap32_compress(char *in_data, int width, int height,
             fdelta(sr_data, r_data, cx, cy);
             fdelta(sg_data, g_data, cx, cy);
             fdelta(sb_data, b_data, cx, cy);
-            out_uint8(s, header);
-            a_bytes = fpack(a_data, cx, cy, s);
-            r_bytes = fpack(r_data, cx, cy, s);
-            g_bytes = fpack(g_data, cx, cy, s);
-            b_bytes = fpack(b_data, cx, cy, s);
-            max_bytes = cx * cy * 4;
-            total_bytes = a_bytes + r_bytes + g_bytes + b_bytes;
-            if (1 + total_bytes > byte_limit)
+            while (cy > 0)
             {
-                /* failed */
-                LLOGLN(0, ("xrdp_bitmap32_compress: too big, argb "
-                       "bytes %d %d %d %d total_bytes %d cx %d cy %d "
-                       "byte_limit %d", a_bytes, r_bytes, g_bytes, b_bytes,
-                       total_bytes, cx, cy, byte_limit));
-                return 0;
-            }
-            if (total_bytes > max_bytes)
-            {
-                /* raw is better */
-                LLOGLN(10, ("xrdp_bitmap32_compress: too big, argb "
-                       "bytes %d %d %d %d total_bytes %d cx %d cy %d "
-                       "max_bytes %d", a_bytes, r_bytes, g_bytes, b_bytes,
-                       total_bytes, cx, cy, max_bytes));
-                init_stream(s, 0);
-                foutraw4(s, cx * cy, 0, sa_data, sr_data, sg_data, sb_data);
+                s->p = hold_p;
+                out_uint8(s, header);
+                a_bytes = fpack(a_data, cx, cy, s);
+                r_bytes = fpack(r_data, cx, cy, s);
+                g_bytes = fpack(g_data, cx, cy, s);
+                b_bytes = fpack(b_data, cx, cy, s);
+                max_bytes = cx * cy * 4;
+                total_bytes = a_bytes + r_bytes + g_bytes + b_bytes;
+                if (total_bytes > max_bytes)
+                {
+                    if (2 + max_bytes <= byte_limit)
+                    {
+                        s->p = hold_p;
+                        foutraw4(s, cx * cy, 0, sa_data, sr_data, sg_data, sb_data);
+                        break;
+                    }
+                }
+                if (1 + total_bytes <= byte_limit)
+                {
+                    break;
+                }
+                cy--;
             }
         }
         else
         {
-            foutraw4(s, cx * cy, 0, sa_data, sr_data, sg_data, sb_data);
+            while (cy > 0)
+            {
+                max_bytes = cx * cy * 4;
+                if (2 + max_bytes <= byte_limit)
+                {
+                    s->p = hold_p;
+                    foutraw4(s, cx * cy, 0, sa_data, sr_data, sg_data, sb_data);
+                    break;
+                }
+                cy--;
+            }
         }
     }
     return cy;

@@ -27,14 +27,10 @@
 #ifndef SESMAN_H
 #define SESMAN_H
 
-#if defined(HAVE_CONFIG_H)
-#include "config_ac.h"
-#endif
 #include "arch.h"
 #include "parse.h"
 #include "os_calls.h"
 #include "log.h"
-#include "file_loc.h"
 #include "env.h"
 #include "auth.h"
 #include "config.h"

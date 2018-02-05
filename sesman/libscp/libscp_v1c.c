@@ -24,6 +24,10 @@
  *
  */
 
+#if defined(HAVE_CONFIG_H)
+#include <config_ac.h>
+#endif
+
 #include "libscp_v1c.h"
 
 #include <stdlib.h>
@@ -136,13 +140,6 @@ scp_v1c_resend_credentials(struct SCP_CONNECTION *c, struct SCP_SESSION *s)
     return _scp_v1c_check_response(c, s);
 }
 
-/* 021 */
-enum SCP_CLIENT_STATES_E
-scp_v1c_pwd_change(struct SCP_CONNECTION *c, char *newpass);
-/* 022 */
-enum SCP_CLIENT_STATES_E
-scp_v1c_pwd_change_cancel(struct SCP_CONNECTION *c);
-
 /* 041 */
 enum SCP_CLIENT_STATES_E
 scp_v1c_get_session_list(struct SCP_CONNECTION *c, int *scount,
@@ -180,6 +177,7 @@ scp_v1c_get_session_list(struct SCP_CONNECTION *c, int *scount,
 
         if (0 != scp_tcp_force_recv(c->in_sck, c->in_s->data, 8))
         {
+            g_free(ds);
             return SCP_CLIENT_STATE_NETWORK_ERR;
         }
 
@@ -187,6 +185,7 @@ scp_v1c_get_session_list(struct SCP_CONNECTION *c, int *scount,
 
         if (version != 1)
         {
+            g_free(ds);
             return SCP_CLIENT_STATE_VERSION_ERR;
         }
 
@@ -194,6 +193,7 @@ scp_v1c_get_session_list(struct SCP_CONNECTION *c, int *scount,
 
         if (size < 12)
         {
+            g_free(ds);
             return SCP_CLIENT_STATE_SIZE_ERR;
         }
 
@@ -201,6 +201,7 @@ scp_v1c_get_session_list(struct SCP_CONNECTION *c, int *scount,
 
         if (0 != scp_tcp_force_recv(c->in_sck, c->in_s->data, size - 8))
         {
+            g_free(ds);
             return SCP_CLIENT_STATE_NETWORK_ERR;
         }
 
@@ -208,6 +209,7 @@ scp_v1c_get_session_list(struct SCP_CONNECTION *c, int *scount,
 
         if (cmd != SCP_COMMAND_SET_DEFAULT)
         {
+            g_free(ds);
             return SCP_CLIENT_STATE_SEQUENCE_ERR;
         }
 
@@ -215,6 +217,7 @@ scp_v1c_get_session_list(struct SCP_CONNECTION *c, int *scount,
 
         if (cmd != 42)
         {
+            g_free(ds);
             return SCP_CLIENT_STATE_SEQUENCE_ERR;
         }
 
