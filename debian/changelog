@@ -1,3 +1,8 @@
+xrdp (0.9.5+git180206~4cee672) xenial; urgency=low
+  * update source from https://github.com/neutrinolabs/xrdp/tree/devel, last commit 4cee672
+
+ -- Fajar A. Nugraha <ubuntu-ppa@fajar.net>  Tue, 06 Feb 2018 02:34:00 +0700
+
 xrdp (0.9.0+git161203~fb892c7) xenial; urgency=low
   * update source from https://github.com/neutrinolabs/xrdp/tree/devel, last commit fb892c7
   * remove debian/patches/vnc.diff
