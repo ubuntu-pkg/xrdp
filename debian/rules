@@ -11,14 +11,14 @@ include /usr/share/quilt/quilt.make
 override_dh_auto_configure: patch
 	./bootstrap
 	dh_auto_configure -- \
-	--enable-fuse --enable-jpeg
+	--enable-fuse --enable-jpeg --disable-pam
 
 override_dh_installdeb:
 	# Replace some config files
 	mv debian/xrdp/etc/xrdp/xrdp.ini debian/xrdp/etc/xrdp/xrdp.ini.sample
-	mv debian/xrdp.ini debian/xrdp/etc/xrdp/
+	cp debian/xrdp.ini debian/xrdp/etc/xrdp/
 	mv debian/xrdp/etc/xrdp/sesman.ini debian/xrdp/etc/xrdp/sesman.ini.sample
-	mv debian/sesman.ini debian/xrdp/etc/xrdp/
+	cp debian/sesman.ini debian/xrdp/etc/xrdp/
 	mv debian/xrdp/etc/xrdp/rsakeys.ini debian/xrdp/etc/xrdp/rsakeys.ini.sample
 	# Replace systemd units
 	rm -f debian/xrdp/lib/systemd/system/xrdp.service
