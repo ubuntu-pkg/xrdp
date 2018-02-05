@@ -76,6 +76,7 @@ struct session_item
   struct session_date disconnect_time;
   struct session_date idle_time;
   char client_ip[256];
+  tui8 guid[16];
 };
 
 struct session_chain
@@ -90,7 +91,7 @@ struct session_chain
  * @return session data or 0
  *
  */
-struct session_item* DEFAULT_CC
+struct session_item*
 session_get_bydata(const char *name, int width, int height, int bpp, int type,
                    const char *client_ip);
 #ifndef session_find_item
@@ -103,12 +104,11 @@ session_get_bydata(const char *name, int width, int height, int bpp, int type,
  * @return 0 on error, display number if success
  *
  */
-int DEFAULT_CC
-session_start(int width, int height, int bpp, char* username, char* password,
-              long data, tui8 type, char* domain, char* program,
-              char* directory, char* client_ip);
+int
+session_start(long data, tui8 type, struct SCP_CONNECTION *c,
+              struct SCP_SESSION *s);
 
-int DEFAULT_CC
+int
 session_reconnect(int display, char* username);
 
 /**
@@ -118,7 +118,7 @@ session_reconnect(int display, char* username);
  * @return
  *
  */
-int DEFAULT_CC
+int
 session_kill(int pid);
 
 /**
@@ -127,8 +127,8 @@ session_kill(int pid);
  * @return
  *
  */
-void DEFAULT_CC
-session_sigkill_all();
+void
+session_sigkill_all(void);
 
 /**
  *
@@ -137,7 +137,7 @@ session_sigkill_all();
  * @return a pointer to the session descriptor on success, NULL otherwise
  *
  */
-struct session_item* DEFAULT_CC
+struct session_item*
 session_get_bypid(int pid);
 
 /**
@@ -150,4 +150,11 @@ session_get_bypid(int pid);
 struct SCP_DISCONNECTED_SESSION*
 session_get_byuser(const char *user, int *cnt, unsigned char flags);
 
+/**
+ *
+ * @brief delete socket files
+ * @param display number
+ * @return non-zero value (number of errors) if failed
+ */
+int cleanup_sockets(int display);
 #endif

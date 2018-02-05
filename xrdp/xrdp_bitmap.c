@@ -21,9 +21,12 @@
  * maybe it should be called xrdp_drawable
  */
 
+#if defined(HAVE_CONFIG_H)
+#include <config_ac.h>
+#endif
+
 #include "xrdp.h"
 #include "log.h"
-#include "crc16.h"
 
 #define LLOG_LEVEL 1
 #define LLOGLN(_level, _args) \
@@ -91,7 +94,7 @@ static const unsigned int g_crc_table[256] =
 #define CRC_END(in_crc) (in_crc) = ((in_crc) ^ 0xFFFFFFFF)
 
 /*****************************************************************************/
-struct xrdp_bitmap *APP_CC
+struct xrdp_bitmap *
 xrdp_bitmap_create(int width, int height, int bpp,
                    int type, struct xrdp_wm *wm)
 {
@@ -123,6 +126,14 @@ xrdp_bitmap_create(int width, int height, int bpp,
         self->data = (char *)g_malloc(width * height * Bpp, 0);
     }
 
+#if defined(XRDP_PAINTER)
+    if (self->type == WND_TYPE_SCREEN) /* noorders */
+    {
+        LLOGLN(0, ("xrdp_bitmap_create: noorders"));
+        self->data = (char *) g_malloc(width * height * Bpp, 0);
+    }
+#endif
+
     if (self->type != WND_TYPE_BITMAP)
     {
         self->child_list = list_create();
@@ -143,15 +154,15 @@ xrdp_bitmap_create(int width, int height, int bpp,
 }
 
 /*****************************************************************************/
-struct xrdp_bitmap *APP_CC
+struct xrdp_bitmap *
 xrdp_bitmap_create_with_data(int width, int height,
                              int bpp, char *data,
                              struct xrdp_wm *wm)
 {
     struct xrdp_bitmap *self = (struct xrdp_bitmap *)NULL;
+    int Bpp;
 #if defined(NEED_ALIGN)
     tintptr data_as_int;
-    int Bpp;
 #endif
 
     self = (struct xrdp_bitmap *)g_malloc(sizeof(struct xrdp_bitmap), 1);
@@ -160,6 +171,22 @@ xrdp_bitmap_create_with_data(int width, int height,
     self->height = height;
     self->bpp = bpp;
     self->wm = wm;
+
+    Bpp = 4;
+    switch (bpp)
+    {
+        case 8:
+            Bpp = 1;
+            break;
+        case 15:
+            Bpp = 2;
+            break;
+        case 16:
+            Bpp = 2;
+            break;
+    }
+    self->line_size = width * Bpp;
+
 #if defined(NEED_ALIGN)
     data_as_int = (tintptr) data;
     if (((bpp >= 24) && (data_as_int & 3)) ||
@@ -167,19 +194,6 @@ xrdp_bitmap_create_with_data(int width, int height,
     {
         /* got to copy data here, it's not aligned
            other calls in this file assume alignment */
-        Bpp = 4;
-        switch (bpp)
-        {
-            case 8:
-                Bpp = 1;
-                break;
-            case 15:
-                Bpp = 2;
-                break;
-            case 16:
-                Bpp = 2;
-                break;
-        }
         self->data = (char *)g_malloc(width * height * Bpp, 0);
         g_memcpy(self->data, data, width * height * Bpp);
         return self;
@@ -191,7 +205,7 @@ xrdp_bitmap_create_with_data(int width, int height,
 }
 
 /*****************************************************************************/
-void APP_CC
+void
 xrdp_bitmap_delete(struct xrdp_bitmap *self)
 {
     int i = 0;
@@ -294,7 +308,7 @@ xrdp_bitmap_delete(struct xrdp_bitmap *self)
 }
 
 /*****************************************************************************/
-struct xrdp_bitmap *APP_CC
+struct xrdp_bitmap *
 xrdp_bitmap_get_child_by_id(struct xrdp_bitmap *self, int id)
 {
     int i = 0;
@@ -316,7 +330,7 @@ xrdp_bitmap_get_child_by_id(struct xrdp_bitmap *self, int id)
 /*****************************************************************************/
 /* if focused is true focus this window else unfocus it */
 /* returns error */
-int APP_CC
+int
 xrdp_bitmap_set_focus(struct xrdp_bitmap *self, int focused)
 {
     struct xrdp_painter *painter = (struct xrdp_painter *)NULL;
@@ -357,7 +371,7 @@ xrdp_bitmap_set_focus(struct xrdp_bitmap *self, int focused)
 }
 
 /*****************************************************************************/
-static int APP_CC
+static int
 xrdp_bitmap_get_index(struct xrdp_bitmap *self, int *palette, int color)
 {
     int r = 0;
@@ -375,7 +389,7 @@ xrdp_bitmap_get_index(struct xrdp_bitmap *self, int *palette, int color)
 
 /*****************************************************************************/
 /* returns error */
-int APP_CC
+int
 xrdp_bitmap_resize(struct xrdp_bitmap *self, int width, int height)
 {
     int Bpp = 0;
@@ -417,7 +431,7 @@ xrdp_bitmap_resize(struct xrdp_bitmap *self, int width, int height)
 /* load a bmp file */
 /* return 0 ok */
 /* return 1 error */
-int APP_CC
+int
 xrdp_bitmap_load(struct xrdp_bitmap *self, const char *filename, int *palette)
 {
     int fd = 0;
@@ -703,7 +717,7 @@ xrdp_bitmap_load(struct xrdp_bitmap *self, const char *filename, int *palette)
 }
 
 /*****************************************************************************/
-int APP_CC
+int
 xrdp_bitmap_get_pixel(struct xrdp_bitmap *self, int x, int y)
 {
     if (self == 0)
@@ -736,7 +750,7 @@ xrdp_bitmap_get_pixel(struct xrdp_bitmap *self, int x, int y)
 }
 
 /*****************************************************************************/
-int APP_CC
+int
 xrdp_bitmap_set_pixel(struct xrdp_bitmap *self, int x, int y, int pixel)
 {
     if (self == 0)
@@ -771,7 +785,7 @@ xrdp_bitmap_set_pixel(struct xrdp_bitmap *self, int x, int y, int pixel)
 /*****************************************************************************/
 /* copy part of self at x, y to 0, 0 in dest */
 /* returns error */
-int APP_CC
+int
 xrdp_bitmap_copy_box(struct xrdp_bitmap *self,
                      struct xrdp_bitmap *dest,
                      int x, int y, int cx, int cy)
@@ -887,7 +901,7 @@ xrdp_bitmap_copy_box(struct xrdp_bitmap *self,
 }
 
 /*****************************************************************************/
-int APP_CC
+int
 xrdp_bitmap_hash_crc(struct xrdp_bitmap *self)
 {
     void *hash;
@@ -934,7 +948,7 @@ xrdp_bitmap_hash_crc(struct xrdp_bitmap *self)
 /*****************************************************************************/
 /* copy part of self at x, y to 0, 0 in dest */
 /* returns error */
-int APP_CC
+int
 xrdp_bitmap_copy_box_with_crc(struct xrdp_bitmap *self,
                               struct xrdp_bitmap *dest,
                               int x, int y, int cx, int cy)
@@ -1197,7 +1211,7 @@ xrdp_bitmap_copy_box_with_crc(struct xrdp_bitmap *self,
 
 /*****************************************************************************/
 /* returns true if they are the same, else returns false */
-int APP_CC
+int
 xrdp_bitmap_compare(struct xrdp_bitmap *self,
                     struct xrdp_bitmap *b)
 {
@@ -1237,7 +1251,7 @@ xrdp_bitmap_compare(struct xrdp_bitmap *self,
 }
 
 /*****************************************************************************/
-static int APP_CC
+static int
 xrdp_bitmap_draw_focus_box(struct xrdp_bitmap *self,
                            struct xrdp_painter *painter,
                            int x, int y, int cx, int cy)
@@ -1275,7 +1289,7 @@ xrdp_bitmap_draw_focus_box(struct xrdp_bitmap *self,
 
 /*****************************************************************************/
 /* x and y are in relation to self for 0, 0 is the top left of the control */
-static int APP_CC
+static int
 xrdp_bitmap_draw_button(struct xrdp_bitmap *self,
                         struct xrdp_painter *painter,
                         int x, int y, int w, int h,
@@ -1342,7 +1356,7 @@ xrdp_bitmap_draw_button(struct xrdp_bitmap *self,
 /*****************************************************************************/
 /* nil for rect means the whole thing */
 /* returns error */
-int APP_CC
+int
 xrdp_bitmap_invalidate(struct xrdp_bitmap *self, struct xrdp_rect *rect)
 {
     int i;
@@ -1753,7 +1767,7 @@ xrdp_bitmap_invalidate(struct xrdp_bitmap *self, struct xrdp_rect *rect)
 
 /*****************************************************************************/
 /* returns error */
-int APP_CC
+int
 xrdp_bitmap_def_proc(struct xrdp_bitmap *self, int msg,
                      int param1, int param2)
 {
@@ -2058,7 +2072,7 @@ xrdp_bitmap_def_proc(struct xrdp_bitmap *self, int msg,
 
 /*****************************************************************************/
 /* convert the controls coords to screen coords */
-int APP_CC
+int
 xrdp_bitmap_to_screenx(struct xrdp_bitmap *self, int x)
 {
     int i;
@@ -2076,7 +2090,7 @@ xrdp_bitmap_to_screenx(struct xrdp_bitmap *self, int x)
 
 /*****************************************************************************/
 /* convert the controls coords to screen coords */
-int APP_CC
+int
 xrdp_bitmap_to_screeny(struct xrdp_bitmap *self, int y)
 {
     int i;
@@ -2094,7 +2108,7 @@ xrdp_bitmap_to_screeny(struct xrdp_bitmap *self, int y)
 
 /*****************************************************************************/
 /* convert the screen coords to controls coords */
-int APP_CC
+int
 xrdp_bitmap_from_screenx(struct xrdp_bitmap *self, int x)
 {
     int i;
@@ -2112,7 +2126,7 @@ xrdp_bitmap_from_screenx(struct xrdp_bitmap *self, int x)
 
 /*****************************************************************************/
 /* convert the screen coords to controls coords */
-int APP_CC
+int
 xrdp_bitmap_from_screeny(struct xrdp_bitmap *self, int y)
 {
     int i;
@@ -2129,7 +2143,7 @@ xrdp_bitmap_from_screeny(struct xrdp_bitmap *self, int y)
 }
 
 /*****************************************************************************/
-int APP_CC
+int
 xrdp_bitmap_get_screen_clip(struct xrdp_bitmap *self,
                             struct xrdp_painter *painter,
                             struct xrdp_rect *rect,

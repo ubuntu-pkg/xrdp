@@ -38,7 +38,7 @@
  *
  */
 struct SCP_SESSION*
-scp_session_create();
+scp_session_create(void);
 
 int
 scp_session_set_type(struct SCP_SESSION* s, tui8 type);
@@ -90,6 +90,9 @@ scp_session_set_display(struct SCP_SESSION* s, SCP_DISPLAY display);
 
 int
 scp_session_set_errstr(struct SCP_SESSION* s, const char *str);
+
+int
+scp_session_set_guid(struct SCP_SESSION *s, const tui8 *guid);
 
 /**
  *

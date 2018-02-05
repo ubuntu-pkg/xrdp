@@ -63,6 +63,10 @@
  * PERFORMANCE OF THIS SOFTWARE.
  */
 
+#if defined(HAVE_CONFIG_H)
+#include <config_ac.h>
+#endif
+
 #define PIXREGION_NIL(reg) ((reg)->data && !(reg)->data->numRects)
 /* not a region */
 #define PIXREGION_NAR(reg)      ((reg)->data == pixman_broken_data)
@@ -79,7 +83,7 @@
 #define GOOD_RECT(rect) ((rect)->x1 < (rect)->x2 && (rect)->y1 < (rect)->y2)
 #define BAD_RECT(rect) ((rect)->x1 > (rect)->x2 || (rect)->y1 > (rect)->y2)
 
-#ifdef DEBUG
+#ifdef XRDP_DEBUG
 
 #define GOOD(reg)                                                       \
     do                                                                  \

@@ -8,8 +8,6 @@ AM_CPPFLAGS = \
 
 if XRDP_DEBUG
 AM_CPPFLAGS += -DXRDP_DEBUG
-else
-AM_CPPFLAGS += -DXRDP_NODEBUG
 endif
 
 module_LTLIBRARIES = \
@@ -17,9 +15,12 @@ module_LTLIBRARIES = \
 
 libxrdpneutrinordp_la_SOURCES = \
   xrdp-color.c \
+  xrdp-color.h \
   xrdp-neutrinordp.c \
   xrdp-neutrinordp.h
 
 libxrdpneutrinordp_la_LIBADD = \
   $(top_builddir)/common/libcommon.la \
   $(FREERDP_LIBS)
+
+libxrdpneutrinordp_la_LDFLAGS = -avoid-version -module

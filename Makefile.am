@@ -1,8 +1,28 @@
 ACLOCAL_AMFLAGS = -I m4
-AM_DISTCHECK_CONFIGURE_FLAGS = --without-systemdsystemunitdir
+AM_DISTCHECK_CONFIGURE_FLAGS = \
+  --without-systemdsystemunitdir \
+  --enable-strict-locations
 
-EXTRA_DIST = bootstrap COPYING coding_style.md design.txt faq-compile.txt \
-  faq-general.txt file-loc.txt install.txt m4 readme.txt
+EXTRA_DIST = \
+  COPYING \
+  README.md \
+  NEWS.md \
+  astyle_config.as \
+  bootstrap \
+  coding_style.md \
+  description-pak \
+  design.txt \
+  faq-compile.txt \
+  faq-general.txt \
+  file-loc.txt \
+  fontdump \
+  install.txt \
+  m4 \
+  postinstall-pak \
+  tcutils \
+  tests \
+  vrplayer \
+  xorg
 
 if XRDP_NEUTRINORDP
 NEUTRINORDPDIR = neutrinordp
@@ -16,14 +36,27 @@ else
 XRDPVRDIR =
 endif
 
+if XRDP_PAINTER
+PAINTERDIR = libpainter
+else
+PAINTERDIR =
+endif
+
+if XRDP_RFXCODEC
+RFXCODECDIR = librfxcodec
+else
+RFXCODECDIR =
+endif
+
 SUBDIRS = \
   common \
   vnc \
-  rdp \
   xup \
   mc \
   $(NEUTRINORDPDIR) \
   libxrdp \
+  $(PAINTERDIR) \
+  $(RFXCODECDIR) \
   xrdp \
   sesman \
   keygen \

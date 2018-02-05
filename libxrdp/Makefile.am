@@ -1,3 +1,6 @@
+EXTRA_DIST = \
+  xrdp_surface.c
+
 AM_CPPFLAGS = \
   -DXRDP_CFG_PATH=\"${sysconfdir}/xrdp\" \
   -DXRDP_SBIN_PATH=\"${sbindir}\" \
@@ -5,19 +8,23 @@ AM_CPPFLAGS = \
   -DXRDP_PID_PATH=\"${localstatedir}/run\" \
   -I$(top_srcdir)/common
 
+AM_CFLAGS = $(OPENSSL_CFLAGS)
+
 AM_LDFLAGS =
 
 LIBXRDP_EXTRA_LIBS =
 
 if XRDP_DEBUG
 AM_CPPFLAGS += -DXRDP_DEBUG
-else
-AM_CPPFLAGS += -DXRDP_NODEBUG
 endif
 
 if XRDP_NEUTRINORDP
 AM_CPPFLAGS += -DXRDP_NEUTRINORDP
 LIBXRDP_EXTRA_LIBS += $(FREERDP_LIBS)
+endif
+
+if XRDP_RFXCODEC
+AM_CPPFLAGS += -DXRDP_RFXCODEC
 endif
 
 if XRDP_TJPEG

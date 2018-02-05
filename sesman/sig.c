@@ -24,9 +24,13 @@
  *
  */
 
-#include "sesman.h"
+#if defined(HAVE_CONFIG_H)
+#include <config_ac.h>
+#endif
 
-#include "signal.h"
+#include <signal.h>
+
+#include "sesman.h"
 
 extern int g_sck;
 extern int g_pid;
@@ -34,7 +38,7 @@ extern struct config_sesman *g_cfg; /* in sesman.c */
 extern tbus g_term_event;
 
 /******************************************************************************/
-void DEFAULT_CC
+void
 sig_sesman_shutdown(int sig)
 {
     char pid_file[256];
@@ -58,7 +62,7 @@ sig_sesman_shutdown(int sig)
 }
 
 /******************************************************************************/
-void DEFAULT_CC
+void
 sig_sesman_reload_cfg(int sig)
 {
     int error;
@@ -121,7 +125,7 @@ sig_sesman_reload_cfg(int sig)
 }
 
 /******************************************************************************/
-void DEFAULT_CC
+void
 sig_sesman_session_end(int sig)
 {
     int pid;
@@ -140,7 +144,7 @@ sig_sesman_session_end(int sig)
 }
 
 /******************************************************************************/
-void *DEFAULT_CC
+void *
 sig_handler_thread(void *arg)
 {
     int recv_signal;
@@ -167,7 +171,7 @@ sig_handler_thread(void *arg)
 
     do
     {
-        LOG_DBG(&(g_cfg->log), "calling sigwait()", 0);
+        LOG_DBG("calling sigwait()");
         sigwait(&waitmask, &recv_signal);
 
         switch (recv_signal)
@@ -175,22 +179,22 @@ sig_handler_thread(void *arg)
             case SIGHUP:
                 //reload cfg
                 //we must stop & restart logging, or copy logging cfg!!!!
-                LOG_DBG("sesman received SIGHUP", 0);
+                LOG_DBG("sesman received SIGHUP");
                 //return 0;
                 break;
             case SIGCHLD:
                 /* a session died */
-                LOG_DBG("sesman received SIGCHLD", 0);
+                LOG_DBG("sesman received SIGCHLD");
                 sig_sesman_session_end(SIGCHLD);
                 break;
             case SIGINT:
                 /* we die */
-                LOG_DBG("sesman received SIGINT", 0);
+                LOG_DBG("sesman received SIGINT");
                 sig_sesman_shutdown(recv_signal);
                 break;
             case SIGTERM:
                 /* we die */
-                LOG_DBG("sesman received SIGTERM", 0);
+                LOG_DBG("sesman received SIGTERM");
                 sig_sesman_shutdown(recv_signal);
                 break;
         }

@@ -55,6 +55,7 @@ typedef bool pa_bool_t;
 #endif
 
 #include "module-xrdp-source-symdef.h"
+#include "../../../common/xrdp_sockets.h"
 
 PA_MODULE_AUTHOR("Laxmikant Rashinkar");
 PA_MODULE_DESCRIPTION("xrdp source");
@@ -72,7 +73,6 @@ PA_MODULE_USAGE(
 #define DEFAULT_SOURCE_NAME "xrdp-source"
 #define DEFAULT_LATENCY_TIME 10
 #define MAX_LATENCY_USEC 1000
-#define CHANSRV_PORT_STR "/tmp/.xrdp/xrdp_chansrv_audio_in_socket_%d"
 
 struct userdata {
     pa_core *core;
@@ -177,6 +177,7 @@ static int data_get(struct userdata *u, pa_memchunk *chunk) {
     int read_bytes;
     struct sockaddr_un s;
     char *data;
+    char *socket_dir;
     char buf[11];
     unsigned char ubuf[10];
 
@@ -186,7 +187,13 @@ static int data_get(struct userdata *u, pa_memchunk *chunk) {
         memset(&s, 0, sizeof(s));
         s.sun_family = AF_UNIX;
         bytes = sizeof(s.sun_path) - 1;
-        snprintf(s.sun_path, bytes, CHANSRV_PORT_STR, u->display_num);
+        socket_dir = getenv("XRDP_SOCKET_PATH");
+        if (socket_dir == NULL || socket_dir[0] == '\0')
+        {
+            socket_dir = "/tmp/.xrdp";
+        }
+        snprintf(s.sun_path, bytes, "%s/" CHANSRV_PORT_IN_BASE_STR,
+                 socket_dir, u->display_num);
         pa_log_debug("Trying to connect to %s", s.sun_path);
 
         if (connect(fd, (struct sockaddr *) &s, sizeof(struct sockaddr_un)) != 0) {

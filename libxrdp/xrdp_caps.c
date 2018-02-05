@@ -19,10 +19,14 @@
  * RDP Capability Sets
  */
 
+#if defined(HAVE_CONFIG_H)
+#include <config_ac.h>
+#endif
+
 #include "libxrdp.h"
 
 /*****************************************************************************/
-static int APP_CC
+static int
 xrdp_caps_send_monitorlayout(struct xrdp_rdp *self)
 {
     struct stream *s;
@@ -62,7 +66,7 @@ xrdp_caps_send_monitorlayout(struct xrdp_rdp *self)
 }
 
 /*****************************************************************************/
-static int APP_CC
+static int
 xrdp_caps_process_general(struct xrdp_rdp *self, struct stream *s,
                           int len)
 {
@@ -80,6 +84,7 @@ xrdp_caps_process_general(struct xrdp_rdp *self, struct stream *s,
     in_uint8s(s, 6);
     in_uint16_le(s, extraFlags); /* extraFlags (2 bytes) */
 
+    self->client_info.op1 = extraFlags & NO_BITMAP_COMPRESSION_HDR;
     /* use_compact_packets is pretty much 'use rdp5' */
     self->client_info.use_compact_packets = (extraFlags != 0);
     /* op2 is a boolean to use compact bitmap headers in bitmap cache */
@@ -96,7 +101,7 @@ xrdp_caps_process_general(struct xrdp_rdp *self, struct stream *s,
 }
 
 /*****************************************************************************/
-static int APP_CC
+static int
 xrdp_caps_process_order(struct xrdp_rdp *self, struct stream *s,
                         int len)
 {
@@ -159,12 +164,21 @@ xrdp_caps_process_order(struct xrdp_rdp *self, struct stream *s,
     DEBUG(("desktop cache size %d", i));
     in_uint8s(s, 4); /* Unknown */
     in_uint8s(s, 4); /* Unknown */
+
+    /* check if libpainter should be used for drawing, instead of orders */
+    if (!(order_caps[TS_NEG_DSTBLT_INDEX] && order_caps[TS_NEG_PATBLT_INDEX] &&
+          order_caps[TS_NEG_SCRBLT_INDEX] && order_caps[TS_NEG_MEMBLT_INDEX]))
+    {
+        g_writeln("xrdp_caps_process_order: not enough orders supported by client, using painter.");
+        self->client_info.no_orders_supported = 1;
+    }
+
     return 0;
 }
 
 /*****************************************************************************/
 /* get the bitmap cache size */
-static int APP_CC
+static int
 xrdp_caps_process_bmpcache(struct xrdp_rdp *self, struct stream *s,
                            int len)
 {
@@ -206,7 +220,7 @@ xrdp_caps_process_bmpcache(struct xrdp_rdp *self, struct stream *s,
 
 /*****************************************************************************/
 /* get the bitmap cache size */
-static int APP_CC
+static int
 xrdp_caps_process_bmpcache2(struct xrdp_rdp *self, struct stream *s,
                             int len)
 {
@@ -249,7 +263,7 @@ xrdp_caps_process_bmpcache2(struct xrdp_rdp *self, struct stream *s,
 }
 
 /*****************************************************************************/
-static int APP_CC
+static int
 xrdp_caps_process_cache_v3_codec_id(struct xrdp_rdp *self, struct stream *s,
                                     int len)
 {
@@ -269,7 +283,7 @@ xrdp_caps_process_cache_v3_codec_id(struct xrdp_rdp *self, struct stream *s,
 
 /*****************************************************************************/
 /* get the number of client cursor cache */
-static int APP_CC
+static int
 xrdp_caps_process_pointer(struct xrdp_rdp *self, struct stream *s,
                           int len)
 {
@@ -311,7 +325,7 @@ xrdp_caps_process_pointer(struct xrdp_rdp *self, struct stream *s,
 }
 
 /*****************************************************************************/
-static int APP_CC
+static int
 xrdp_caps_process_input(struct xrdp_rdp *self, struct stream *s,
                         int len)
 {
@@ -330,7 +344,7 @@ xrdp_caps_process_input(struct xrdp_rdp *self, struct stream *s,
 
 /*****************************************************************************/
 /* get the type of client brush cache */
-int APP_CC
+int
 xrdp_caps_process_brushcache(struct xrdp_rdp *self, struct stream *s,
                              int len)
 {
@@ -347,7 +361,7 @@ xrdp_caps_process_brushcache(struct xrdp_rdp *self, struct stream *s,
 }
 
 /*****************************************************************************/
-int APP_CC
+int
 xrdp_caps_process_offscreen_bmpcache(struct xrdp_rdp *self, struct stream *s,
                                      int len)
 {
@@ -373,7 +387,7 @@ xrdp_caps_process_offscreen_bmpcache(struct xrdp_rdp *self, struct stream *s,
 }
 
 /*****************************************************************************/
-int APP_CC
+int
 xrdp_caps_process_rail(struct xrdp_rdp *self, struct stream *s, int len)
 {
     int i32;
@@ -391,7 +405,7 @@ xrdp_caps_process_rail(struct xrdp_rdp *self, struct stream *s, int len)
 }
 
 /*****************************************************************************/
-static int APP_CC
+static int
 xrdp_caps_process_window(struct xrdp_rdp *self, struct stream *s, int len)
 {
     int i32;
@@ -416,7 +430,7 @@ xrdp_caps_process_window(struct xrdp_rdp *self, struct stream *s, int len)
 }
 
 /*****************************************************************************/
-static int APP_CC
+static int
 xrdp_caps_process_codecs(struct xrdp_rdp *self, struct stream *s, int len)
 {
     int codec_id;
@@ -457,7 +471,7 @@ xrdp_caps_process_codecs(struct xrdp_rdp *self, struct stream *s, int len)
 
         if (g_memcmp(codec_guid, XR_CODEC_GUID_NSCODEC, 16) == 0)
         {
-            g_writeln("xrdp_caps_process_codecs: nscodec codec id %d prop len %d",
+            g_writeln("xrdp_caps_process_codecs: nscodec, codec id %d, properties len %d",
                       codec_id, codec_properties_length);
             self->client_info.ns_codec_id = codec_id;
             i1 = MIN(64, codec_properties_length);
@@ -466,7 +480,7 @@ xrdp_caps_process_codecs(struct xrdp_rdp *self, struct stream *s, int len)
         }
         else if (g_memcmp(codec_guid, XR_CODEC_GUID_REMOTEFX, 16) == 0)
         {
-            g_writeln("xrdp_caps_process_codecs: rfx codec id %d prop len %d",
+            g_writeln("xrdp_caps_process_codecs: RemoteFX, codec id %d, properties len %d",
                       codec_id, codec_properties_length);
             self->client_info.rfx_codec_id = codec_id;
             i1 = MIN(64, codec_properties_length);
@@ -475,7 +489,7 @@ xrdp_caps_process_codecs(struct xrdp_rdp *self, struct stream *s, int len)
         }
         else if (g_memcmp(codec_guid, XR_CODEC_GUID_JPEG, 16) == 0)
         {
-            g_writeln("xrdp_caps_process_codecs: jpeg codec id %d prop len %d",
+            g_writeln("xrdp_caps_process_codecs: jpeg, codec id %d, properties len %d",
                       codec_id, codec_properties_length);
             self->client_info.jpeg_codec_id = codec_id;
             i1 = MIN(64, codec_properties_length);
@@ -492,7 +506,7 @@ xrdp_caps_process_codecs(struct xrdp_rdp *self, struct stream *s, int len)
         }
         else if (g_memcmp(codec_guid, XR_CODEC_GUID_H264, 16) == 0)
         {
-            g_writeln("xrdp_caps_process_codecs: h264 codec id %d prop len %d",
+            g_writeln("xrdp_caps_process_codecs: h264, codec id %d, properties len %d",
                       codec_id, codec_properties_length);
             self->client_info.h264_codec_id = codec_id;
             i1 = MIN(64, codec_properties_length);
@@ -511,7 +525,7 @@ xrdp_caps_process_codecs(struct xrdp_rdp *self, struct stream *s, int len)
 }
 
 /*****************************************************************************/
-static int APP_CC
+static int
 xrdp_caps_process_multifragmentupdate(struct xrdp_rdp *self, struct stream *s,
                                       int len)
 {
@@ -523,18 +537,36 @@ xrdp_caps_process_multifragmentupdate(struct xrdp_rdp *self, struct stream *s,
 }
 
  /*****************************************************************************/
-static int APP_CC
+static int
 xrdp_caps_process_frame_ack(struct xrdp_rdp *self, struct stream *s, int len)
 {
     g_writeln("xrdp_caps_process_frame_ack:");
     self->client_info.use_frame_acks = 1;
     in_uint32_le(s, self->client_info.max_unacknowledged_frame_count);
+    if (self->client_info.max_unacknowledged_frame_count < 0)
+    {
+        g_writeln("  invalid max_unacknowledged_frame_count value (%d), setting to 0",
+                  self->client_info.max_unacknowledged_frame_count);
+        self->client_info.max_unacknowledged_frame_count = 0;
+    }
     g_writeln("  max_unacknowledged_frame_count %d", self->client_info.max_unacknowledged_frame_count);
     return 0;
 }
 
 /*****************************************************************************/
-int APP_CC
+static int
+xrdp_caps_process_surface_cmds(struct xrdp_rdp *self, struct stream *s, int len)
+{
+    int cmdFlags;
+    g_writeln("xrdp_caps_process_surface_cmds:");
+    in_uint32_le(s, cmdFlags);
+    in_uint8s(s, 4); /* reserved */
+    g_writeln("  cmdFlags 0x%08x", cmdFlags);
+    return 0;
+}
+
+/*****************************************************************************/
+int
 xrdp_caps_process_confirm_active(struct xrdp_rdp *self, struct stream *s)
 {
     int cap_len;
@@ -578,85 +610,88 @@ xrdp_caps_process_confirm_active(struct xrdp_rdp *self, struct stream *s)
         len -= 4;
         switch (type)
         {
-            case RDP_CAPSET_GENERAL: /* 1 */
+            case RDP_CAPSET_GENERAL:
                 DEBUG(("RDP_CAPSET_GENERAL"));
                 xrdp_caps_process_general(self, s, len);
                 break;
-            case RDP_CAPSET_BITMAP: /* 2 */
+            case RDP_CAPSET_BITMAP:
                 DEBUG(("RDP_CAPSET_BITMAP"));
                 break;
-            case RDP_CAPSET_ORDER: /* 3 */
+            case RDP_CAPSET_ORDER:
                 DEBUG(("RDP_CAPSET_ORDER"));
                 xrdp_caps_process_order(self, s, len);
                 break;
-            case RDP_CAPSET_BMPCACHE: /* 4 */
+            case RDP_CAPSET_BMPCACHE:
                 DEBUG(("RDP_CAPSET_BMPCACHE"));
                 xrdp_caps_process_bmpcache(self, s, len);
                 break;
-            case RDP_CAPSET_CONTROL: /* 5 */
+            case RDP_CAPSET_CONTROL:
                 DEBUG(("RDP_CAPSET_CONTROL"));
                 break;
             case 6:
                 xrdp_caps_process_cache_v3_codec_id(self, s, len);
                 break;
-            case RDP_CAPSET_ACTIVATE: /* 7 */
+            case RDP_CAPSET_ACTIVATE:
                 DEBUG(("RDP_CAPSET_ACTIVATE"));
                 break;
-            case RDP_CAPSET_POINTER: /* 8 */
+            case RDP_CAPSET_POINTER:
                 DEBUG(("RDP_CAPSET_POINTER"));
                 xrdp_caps_process_pointer(self, s, len);
                 break;
-            case RDP_CAPSET_SHARE: /* 9 */
+            case RDP_CAPSET_SHARE:
                 DEBUG(("RDP_CAPSET_SHARE"));
                 break;
-            case RDP_CAPSET_COLCACHE: /* 10 */
+            case RDP_CAPSET_COLCACHE:
                 DEBUG(("RDP_CAPSET_COLCACHE"));
                 break;
-            case 12: /* 12 */
-                DEBUG(("--12"));
+            case RDP_CAPSET_SOUND:
+                DEBUG(("--0x0C"));
                 break;
-            case 13: /* 13 */
+            case RDP_CAPSET_INPUT:
                 xrdp_caps_process_input(self, s, len);
                 break;
-            case 14: /* 14 */
-                DEBUG(("--14"));
+            case RDP_CAPSET_FONT:
+                DEBUG(("--0x0D"));
                 break;
-            case RDP_CAPSET_BRUSHCACHE: /* 15 */
+            case RDP_CAPSET_BRUSHCACHE:
                 xrdp_caps_process_brushcache(self, s, len);
                 break;
-            case 16: /* 16 */
-                DEBUG(("--16"));
+            case RDP_CAPSET_GLYPHCACHE:
+                DEBUG(("--0x11"));
                 break;
-            case 17: /* 17 */
+            case RDP_CAPSET_OFFSCREENCACHE:
                 DEBUG(("CAPSET_TYPE_OFFSCREEN_CACHE"));
                 xrdp_caps_process_offscreen_bmpcache(self, s, len);
                 break;
-            case RDP_CAPSET_BMPCACHE2: /* 19 */
+            case RDP_CAPSET_BMPCACHE2:
                 DEBUG(("RDP_CAPSET_BMPCACHE2"));
                 xrdp_caps_process_bmpcache2(self, s, len);
                 break;
-            case 20: /* 20 */
-                DEBUG(("--20"));
+            case RDP_CAPSET_VIRCHAN:
+                DEBUG(("--0x14"));
                 break;
-            case 21: /* 21 */
-                DEBUG(("--21"));
+            case RDP_CAPSET_DRAWNINEGRIDCACHE:
+                DEBUG(("--0x15"));
                 break;
-            case 22: /* 22 */
-                DEBUG(("--22"));
+            case RDP_CAPSET_DRAWGDIPLUS:
+                DEBUG(("--0x16"));
                 break;
-            case 0x0017: /* 23 CAPSETTYPE_RAIL */
+            case RDP_CAPSET_RAIL:
                 xrdp_caps_process_rail(self, s, len);
                 break;
-            case 0x0018: /* 24 CAPSETTYPE_WINDOW */
+            case RDP_CAPSET_WINDOW:
                 xrdp_caps_process_window(self, s, len);
                 break;
-            case 0x001A: /* 26 CAPSETTYPE_MULTIFRAGMENTUPDATE */
+            case RDP_CAPSET_MULTIFRAGMENT:
                 xrdp_caps_process_multifragmentupdate(self, s, len);
                 break;
-            case RDP_CAPSET_BMPCODECS: /* 0x1d(29) */
+            case RDP_CAPSET_SURFCMDS:
+                xrdp_caps_process_surface_cmds(self, s, len);
+                break;
+            case RDP_CAPSET_BMPCODECS:
                 xrdp_caps_process_codecs(self, s, len);
                 break;
-            case 0x001E: /* CAPSSETTYPE_FRAME_ACKNOWLEDGE */
+            case RDP_CAPSET_FRAME_ACKNOWLEDGE:
                 xrdp_caps_process_frame_ack(self, s, len);
                 break;
             default:
@@ -667,11 +702,22 @@ xrdp_caps_process_confirm_active(struct xrdp_rdp *self, struct stream *s)
         s->p = p + len + 4;
     }
 
+    if (self->client_info.no_orders_supported &&
+        (self->client_info.offscreen_support_level != 0))
+    {
+        g_writeln("xrdp_caps_process_confirm_active: not enough orders "
+                  "supported by client, client wants off screen bitmap but "
+                  "offscreen bitmaps disabled");
+        self->client_info.offscreen_support_level = 0;
+        self->client_info.offscreen_cache_size = 0;
+        self->client_info.offscreen_cache_entries = 0;
+    }
+
     DEBUG(("out xrdp_caps_process_confirm_active"));
     return 0;
 }
 /*****************************************************************************/
-int APP_CC
+int
 xrdp_caps_send_demand_active(struct xrdp_rdp *self)
 {
     struct stream *s;
@@ -827,22 +873,30 @@ xrdp_caps_send_demand_active(struct xrdp_rdp *self)
     codec_caps_count++;
     out_uint8a(s, XR_CODEC_GUID_NSCODEC, 16);
     out_uint8(s, 1); /* codec id, must be 1 */
-    out_uint16_le(s, 3);
+    out_uint16_le(s, 3); /* codecPropertiesLength */
     out_uint8(s, 0x01); /* fAllowDynamicFidelity */
     out_uint8(s, 0x01); /* fAllowSubsampling */
     out_uint8(s, 0x03); /* colorLossLevel */
+#if defined(XRDP_RFXCODEC) || defined(XRDP_NEUTRINORDP)
     /* remotefx */
     codec_caps_count++;
     out_uint8a(s, XR_CODEC_GUID_REMOTEFX, 16);
     out_uint8(s, 0); /* codec id, client sets */
-    out_uint16_le(s, 256);
-    out_uint8s(s, 256);
+    out_uint16_le(s, 4); /* codecPropertiesLength */
+    out_uint32_le(s, 0); /* reserved */
+    /* image remotefx */
+    codec_caps_count++;
+    out_uint8a(s, XR_CODEC_GUID_IMAGE_REMOTEFX, 16);
+    out_uint8(s, 0); /* codec id, client sets */
+    out_uint16_le(s, 4); /* codecPropertiesLength */
+    out_uint32_le(s, 0); /* reserved */
+#endif
     /* jpeg */
     codec_caps_count++;
     out_uint8a(s, XR_CODEC_GUID_JPEG, 16);
     out_uint8(s, 0); /* codec id, client sets */
-    out_uint16_le(s, 1); /* ext length */
-    out_uint8(s, 75);
+    out_uint16_le(s, 1); /* codecPropertiesLength */
+    out_uint8(s, 75); /* jpeg compression ratio */
     /* calculate and set size and count */
     codec_caps_size = (int)(s->p - codec_caps_size_ptr);
     codec_caps_size += 2; /* 2 bytes for RDP_CAPSET_BMPCODECS above */
@@ -870,16 +924,14 @@ xrdp_caps_send_demand_active(struct xrdp_rdp *self)
     out_uint16_le(s, RDP_CAPSET_INPUT); /* 13(0xd) */
     out_uint16_le(s, RDP_CAPLEN_INPUT); /* 88(0x58) */
 
-    /* INPUT_FLAG_SCANCODES 0x0001
-       INPUT_FLAG_MOUSEX 0x0004
-       INPUT_FLAG_FASTPATH_INPUT 0x0008
-       INPUT_FLAG_FASTPATH_INPUT2 0x0020 */
-    flags = 0x0001 | 0x0004;
+    flags = INPUT_FLAG_SCANCODES |
+            INPUT_FLAG_MOUSEX    |
+            INPUT_FLAG_UNICODE   |
+            TS_INPUT_FLAG_MOUSE_HWHEEL;
+
     if (self->client_info.use_fast_path & 2)
     {
-        /* 0x0008 INPUT_FLAG_FASTPATH_INPUT */
-        /* 0x0020 INPUT_FLAG_FASTPATH_INPUT2 */
-        flags |= 0x0008 | 0x0020;
+        flags |= INPUT_FLAG_FASTPATH_INPUT | INPUT_FLAG_FASTPATH_INPUT2;
     }
     out_uint16_le(s, flags);
     out_uint8s(s, 82);
@@ -905,19 +957,29 @@ xrdp_caps_send_demand_active(struct xrdp_rdp *self)
     out_uint16_le(s, 5);
     out_uint8(s, 0); /* client sets */
 
-    if (self->client_info.use_fast_path & 1) /* fastpath output on */
+    if (self->client_info.use_fast_path & FASTPATH_OUTPUT_SUPPORTED) /* fastpath output on */
     {
+        /* multifragment update */
         caps_count++;
-        out_uint16_le(s, 0x001A); /* 26 CAPSETTYPE_MULTIFRAGMENTUPDATE */
-        out_uint16_le(s, 8);
+        out_uint16_le(s, RDP_CAPSET_MULTIFRAGMENT); /* 26 CAPSETTYPE_MULTIFRAGMENTUPDATE */
+        out_uint16_le(s, RDP_CAPLEN_MULTIFRAGMENT);
         out_uint32_le(s, 3 * 1024 * 1024); /* 3MB */
-    }
 
-    /* frame acks */
-    caps_count++;
-    out_uint16_le(s, 0x001E); /* CAPSETTYPE_FRAME_ACKNOWLEDGE */
-    out_uint16_le(s, 8);
-    out_uint32_le(s, 2); /* 2 frames in flight */
+        /* frame acks */
+        caps_count++;
+        out_uint16_le(s, RDP_CAPSET_FRAME_ACKNOWLEDGE); /* CAPSETTYPE_FRAME_ACKNOWLEDGE */
+        out_uint16_le(s, RDP_CAPLEN_FRAME_ACKNOWLEDGE);
+        out_uint32_le(s, 2); /* 2 frames in flight */
+
+        /* surface commands */
+        caps_count++;
+        out_uint16_le(s, RDP_CAPSET_SURFCMDS); /* CAPSETTYPE_SURFACE_COMMANDS */
+        out_uint16_le(s, RDP_CAPLEN_SURFCMDS); /* lengthCapability */
+        out_uint32_le(s, (SURFCMDS_SETSURFACEBITS |
+                          SURFCMDS_FRAMEMARKER |
+                          SURFCMDS_STREAMSUFRACEBITS)); /* cmdFlags */
+        out_uint32_le(s, 0); /* reserved */
+    }
 
     out_uint8s(s, 4); /* pad */
 

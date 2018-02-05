@@ -24,13 +24,17 @@
  *
  */
 
+#if defined(HAVE_CONFIG_H)
+#include <config_ac.h>
+#endif
+
 #include "libscp_init.h"
 
 //struct log_config* s_log;
 
 /* server API */
-int DEFAULT_CC
-scp_init()
+int
+scp_init(void)
 {
     /*
       if (0 == log)

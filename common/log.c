@@ -16,6 +16,10 @@
  * limitations under the License.
  */
 
+#if defined(HAVE_CONFIG_H)
+#include <config_ac.h>
+#endif
+
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <fcntl.h>
@@ -48,7 +52,7 @@ static struct log_config *g_staticLogConfig = NULL;
  * @return see open(2) return values
  *
  */
-int DEFAULT_CC
+int
 internal_log_file_open(const char *fname)
 {
     int ret = -1;
@@ -76,7 +80,7 @@ internal_log_file_open(const char *fname)
  * @return syslog equivalent logging level
  *
  */
-int DEFAULT_CC
+int
 internal_log_xrdp2syslog(const enum logLevels lvl)
 {
     switch (lvl)
@@ -90,6 +94,7 @@ internal_log_xrdp2syslog(const enum logLevels lvl)
         case LOG_LEVEL_INFO:
             return LOG_INFO;
         case LOG_LEVEL_DEBUG:
+        case LOG_LEVEL_TRACE:
             return LOG_DEBUG;
         default:
             g_writeln("Undefined log level - programming error");
@@ -104,7 +109,7 @@ internal_log_xrdp2syslog(const enum logLevels lvl)
  * @return The log string in str pointer.
  *
  */
-void DEFAULT_CC
+void
 internal_log_lvl2str(const enum logLevels lvl, char *str)
 {
     switch (lvl)
@@ -124,6 +129,9 @@ internal_log_lvl2str(const enum logLevels lvl, char *str)
         case LOG_LEVEL_DEBUG:
             snprintf(str, 9, "%s", "[DEBUG] ");
             break;
+        case LOG_LEVEL_TRACE:
+            snprintf(str, 9, "%s", "[TRACE] ");
+            break;
         default:
             snprintf(str, 9, "%s", "PRG ERR!");
             g_writeln("Programming error - undefined log level!!!");
@@ -131,7 +139,7 @@ internal_log_lvl2str(const enum logLevels lvl, char *str)
 }
 
 /******************************************************************************/
-enum logReturns DEFAULT_CC
+enum logReturns
 internal_log_start(struct log_config *l_cfg)
 {
     enum logReturns ret = LOG_GENERAL_ERROR;
@@ -179,7 +187,7 @@ internal_log_start(struct log_config *l_cfg)
 }
 
 /******************************************************************************/
-enum logReturns DEFAULT_CC
+enum logReturns
 internal_log_end(struct log_config *l_cfg)
 {
     enum logReturns ret = LOG_GENERAL_ERROR;
@@ -189,9 +197,6 @@ internal_log_end(struct log_config *l_cfg)
     {
         return ret;
     }
-
-    /* closing log file */
-    log_message(LOG_LEVEL_ALWAYS, "shutting down log subsystem...");
 
     if (-1 != l_cfg->fd)
     {
@@ -221,7 +226,7 @@ internal_log_end(struct log_config *l_cfg)
  * @param buf
  * @return
  */
-enum logLevels DEFAULT_CC
+enum logLevels
 internal_log_text2level(const char *buf)
 {
     if (0 == g_strcasecmp(buf, "0") ||
@@ -250,12 +255,17 @@ internal_log_text2level(const char *buf)
     {
         return LOG_LEVEL_DEBUG;
     }
+    else if (0 == g_strcasecmp(buf, "5") ||
+             0 == g_strcasecmp(buf, "trace"))
+    {
+        return LOG_LEVEL_TRACE;
+    }
 
     g_writeln("Your configured log level is corrupt - we use debug log level");
     return LOG_LEVEL_DEBUG;
 }
 
-enum logReturns DEFAULT_CC
+enum logReturns
 internalReadConfiguration(const char *inFilename, const char *applicationName)
 {
     int fd;
@@ -316,7 +326,7 @@ internalReadConfiguration(const char *inFilename, const char *applicationName)
 }
 
 /******************************************************************************/
-enum logReturns DEFAULT_CC
+enum logReturns
 internal_config_read_logging(int file, struct log_config *lc,
                              struct list *param_n,
                              struct list *param_v,
@@ -391,7 +401,7 @@ internal_config_read_logging(int file, struct log_config *lc,
     return LOG_STARTUP_OK;
 }
 
-enum logReturns DEFAULT_CC
+enum logReturns
 internalInitAndAllocStruct(void)
 {
     enum logReturns ret = LOG_GENERAL_ERROR;
@@ -416,7 +426,7 @@ internalInitAndAllocStruct(void)
  * Here below the public functions
  */
 
-enum logReturns DEFAULT_CC
+enum logReturns
 log_start_from_param(const struct log_config *iniParams)
 {
     enum logReturns ret = LOG_GENERAL_ERROR;
@@ -475,7 +485,7 @@ log_start_from_param(const struct log_config *iniParams)
  * @param applicationName, the name that is used in the log for the running application
  * @return 0 on success
  */
-enum logReturns DEFAULT_CC
+enum logReturns
 log_start(const char *iniFile, const char *applicationName)
 {
     enum logReturns ret = LOG_GENERAL_ERROR;
@@ -516,7 +526,7 @@ log_start(const char *iniFile, const char *applicationName)
  * Function that terminates all logging
  * @return
  */
-enum logReturns DEFAULT_CC
+enum logReturns
 log_end(void)
 {
     enum logReturns ret = LOG_GENERAL_ERROR;
@@ -531,7 +541,7 @@ log_end(void)
     return ret;
 }
 
-enum logReturns DEFAULT_CC
+enum logReturns
 log_message(const enum logLevels lvl, const char *msg, ...)
 {
     char buff[LOG_BUFFER_SIZE + 31]; /* 19 (datetime) 4 (space+cr+lf+\0) */
@@ -591,8 +601,8 @@ log_message(const enum logLevels lvl, const char *msg, ...)
     {
         /* log to syslog*/
         /* %s fix compiler warning 'not a string literal' */
-        syslog(internal_log_xrdp2syslog(lvl), "(%d)(%ld)%s", g_getpid(),
-               tc_get_threadid(), buff + 20);
+        syslog(internal_log_xrdp2syslog(lvl), "(%d)(%lld)%s", g_getpid(),
+               (long long) tc_get_threadid(), buff + 20);
     }
 
     if (lvl <= g_staticLogConfig->log_level)
@@ -627,7 +637,7 @@ log_message(const enum logLevels lvl, const char *msg, ...)
  * Return the configured log file name
  * @return
  */
-char *DEFAULT_CC
+char *
 getLogFile(char *replybuf, int bufsize)
 {
     if (g_staticLogConfig)

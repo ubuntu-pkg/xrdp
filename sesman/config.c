@@ -24,6 +24,10 @@
  *
  */
 
+#if defined(HAVE_CONFIG_H)
+#include <config_ac.h>
+#endif
+
 #include "arch.h"
 #include "list.h"
 #include "file.h"
@@ -35,7 +39,7 @@ extern struct config_sesman *g_cfg; /* in sesman.c */
 
 
 /******************************************************************************/
-int DEFAULT_CC
+int
 config_read(struct config_sesman *cfg)
 {
     int fd;
@@ -99,7 +103,7 @@ config_read(struct config_sesman *cfg)
 }
 
 /******************************************************************************/
-int DEFAULT_CC
+int
 config_read_globals(int file, struct config_sesman *cf, struct list *param_n,
                     struct list *param_v)
 {
@@ -183,7 +187,7 @@ config_read_globals(int file, struct config_sesman *cf, struct list *param_n,
 }
 
 /******************************************************************************/
-int DEFAULT_CC
+int
 config_read_security(int file, struct config_security *sc,
                      struct list *param_n,
                      struct list *param_v)
@@ -268,7 +272,7 @@ config_read_security(int file, struct config_security *sc,
 }
 
 /******************************************************************************/
-int DEFAULT_CC
+int
 config_read_sessions(int file, struct config_sessions *se, struct list *param_n,
                      struct list *param_v)
 {
@@ -357,14 +361,14 @@ config_read_sessions(int file, struct config_sessions *se, struct list *param_n,
     g_printf("\tX11DisplayOffset:            %i\r\n", se->x11_display_offset);
     g_printf("\tKillDisconnected:            %i\r\n", se->kill_disconnected);
     g_printf("\tIdleTimeLimit:               %i\r\n", se->max_idle_time);
-    g_printf("\tDisconnectedTimeLimit:       %i\r\n", se->max_idle_time);
+    g_printf("\tDisconnectedTimeLimit:       %i\r\n", se->max_disc_time);
     g_printf("\tPolicy:       %i\r\n", se->policy);
 
     return 0;
 }
 
 /******************************************************************************/
-int DEFAULT_CC
+int
 config_read_rdp_params(int file, struct config_sesman *cs, struct list *param_n,
                        struct list *param_v)
 {
@@ -395,7 +399,7 @@ config_read_rdp_params(int file, struct config_sesman *cs, struct list *param_n,
 }
 
 /******************************************************************************/
-int DEFAULT_CC
+int
 config_read_xorg_params(int file, struct config_sesman *cs,
                         struct list *param_n, struct list *param_v)
 {
@@ -428,7 +432,7 @@ config_read_xorg_params(int file, struct config_sesman *cs,
 }
 
 /******************************************************************************/
-int DEFAULT_CC
+int
 config_read_vnc_params(int file, struct config_sesman *cs, struct list *param_n,
                        struct list *param_v)
 {
@@ -459,7 +463,7 @@ config_read_vnc_params(int file, struct config_sesman *cs, struct list *param_n,
 }
 
 /******************************************************************************/
-int DEFAULT_CC
+int
 config_read_session_variables(int file, struct config_sesman *cs,
                               struct list *param_n, struct list *param_v)
 {
@@ -468,29 +472,29 @@ config_read_session_variables(int file, struct config_sesman *cs,
     list_clear(param_v);
     list_clear(param_n);
 
-    cs->session_variables1 = list_create();
-    cs->session_variables1->auto_free = 1;
-    cs->session_variables2 = list_create();
-    cs->session_variables2->auto_free = 1;
+    cs->env_names = list_create();
+    cs->env_names->auto_free = 1;
+    cs->env_values = list_create();
+    cs->env_values->auto_free = 1;
 
     file_read_section(file, SESMAN_CFG_SESSION_VARIABLES, param_n, param_v);
 
     for (i = 0; i < param_n->count; i++)
     {
-        list_add_item(cs->session_variables1,
+        list_add_item(cs->env_names,
                       (tintptr) g_strdup((char *) list_get_item(param_n, i)));
-        list_add_item(cs->session_variables2,
+        list_add_item(cs->env_values,
                       (tintptr) g_strdup((char *) list_get_item(param_v, i)));
     }
 
     /* printing session variables */
     g_writeln("%s parameters:", SESMAN_CFG_SESSION_VARIABLES);
 
-    for (i = 0; i < cs->session_variables1->count; i++)
+    for (i = 0; i < cs->env_names->count; i++)
     {
         g_writeln("  Parameter %02d                   %s=%s", i,
-               (char *) list_get_item(cs->session_variables1, i),
-               (char *) list_get_item(cs->session_variables2, i));
+               (char *) list_get_item(cs->env_names, i),
+               (char *) list_get_item(cs->env_values, i));
     }
 
     return 0;
@@ -502,7 +506,7 @@ config_free(struct config_sesman *cs)
     list_delete(cs->rdp_params);
     list_delete(cs->vnc_params);
     list_delete(cs->xorg_params);
-    list_delete(cs->session_variables1);
-    list_delete(cs->session_variables2);
+    list_delete(cs->env_names);
+    list_delete(cs->env_values);
     g_free(cs);
 }

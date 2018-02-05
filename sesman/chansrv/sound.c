@@ -16,6 +16,10 @@
  * limitations under the License.
  */
 
+#if defined(HAVE_CONFIG_H)
+#include <config_ac.h>
+#endif
+
 #include <stdio.h>
 #include <sys/types.h>
 #include <sys/socket.h>
@@ -27,8 +31,14 @@
 #include "thread_calls.h"
 #include "defines.h"
 #include "fifo.h"
-#include "file_loc.h"
+#include "xrdp_constants.h"
+#include "xrdp_sockets.h"
 #include "chansrv_common.h"
+
+#if defined(XRDP_FDK_AAC)
+#include <fdk-aac/aacenc_lib.h>
+static HANDLE_AACENCODER g_fdk_aac_encoder = 0;
+#endif
 
 #if defined(XRDP_OPUS)
 #include <opus/opus.h>
@@ -56,6 +66,7 @@ static int    g_cBlockNo = 0;
 static int    g_bytes_in_stream = 0;
 static FIFO   g_in_fifo;
 static int    g_bytes_in_fifo = 0;
+static int    g_unacked_frames = 0;
 
 static struct stream *g_stream_inp = NULL;
 static struct stream *g_stream_incoming_packet = NULL;
@@ -85,7 +96,7 @@ struct xr_wave_format_ex
 static tui8 g_pcm_22050_data[] = { 0 };
 static struct xr_wave_format_ex g_pcm_22050 =
 {
-    1,               /* wFormatTag - WAVE_FORMAT_PCM */
+    WAVE_FORMAT_PCM, /* wFormatTag */
     2,               /* num of channels */
     22050,           /* samples per sec */
     88200,           /* avg bytes per sec */
@@ -98,7 +109,7 @@ static struct xr_wave_format_ex g_pcm_22050 =
 static tui8 g_pcm_44100_data[] = { 0 };
 static struct xr_wave_format_ex g_pcm_44100 =
 {
-    1,               /* wFormatTag - WAVE_FORMAT_PCM */
+    WAVE_FORMAT_PCM, /* wFormatTag */
     2,               /* num of channels */
     44100,           /* samples per sec */
     176400,          /* avg bytes per sec */
@@ -108,11 +119,26 @@ static struct xr_wave_format_ex g_pcm_44100 =
     g_pcm_44100_data /* data */
 };
 
+#if defined(XRDP_FDK_AAC)
+static tui8 g_fdk_aac_44100_data[] = { 0 };
+static struct xr_wave_format_ex g_fdk_aac_44100 =
+{
+    WAVE_FORMAT_AAC,     /* wFormatTag */
+    2,                   /* num of channels */
+    44100,               /* samples per sec */
+    12000,               /* avg bytes per sec */
+    4,                   /* block align */
+    16,                  /* bits per sample */
+    0,                   /* data size */
+    g_fdk_aac_44100_data /* data */
+};
+#endif
+
 #if defined(XRDP_OPUS)
 static tui8 g_opus_44100_data[] = { 0 };
 static struct xr_wave_format_ex g_opus_44100 =
 {
-    0x0069,           /* wFormatTag - WAVE_FORMAT_OPUS */
+    WAVE_FORMAT_OPUS, /* wFormatTag */
     2,                /* num of channels */
     44100,            /* samples per sec */
     176400,           /* avg bytes per sec */
@@ -127,14 +153,14 @@ static struct xr_wave_format_ex g_opus_44100 =
 static tui8 g_mp3lame_44100_data[] = { 0x01, 0x00, 0x02, 0x00, 0x00, 0x00, 0xb6, 0x00, 0x01, 0x00, 0x71, 0x05 };
 static struct xr_wave_format_ex g_mp3lame_44100 =
 {
-    0x0055,              /* wFormatTag - WAVE_FORMAT_MPEGLAYER3 */
-    2,                   /* num of channels */
-    44100,               /* samples per sec */
-    176400,              /* avg bytes per sec */
-    4,                   /* block align */
-    0,                   /* bits per sample */
-    12,                  /* data size */
-    g_mp3lame_44100_data /* data */
+    WAVE_FORMAT_MPEGLAYER3, /* wFormatTag */
+    2,                      /* num of channels */
+    44100,                  /* samples per sec */
+    176400,                 /* avg bytes per sec */
+    4,                      /* block align */
+    0,                      /* bits per sample */
+    12,                     /* data size */
+    g_mp3lame_44100_data    /* data */
 };
 #endif
 
@@ -142,6 +168,9 @@ static struct xr_wave_format_ex *g_wave_outp_formats[] =
 {
     &g_pcm_44100,
     &g_pcm_22050,
+#if defined(XRDP_FDK_AAC)
+    &g_fdk_aac_44100,
+#endif
 #if defined(XRDP_OPUS)
     &g_opus_44100,
 #endif
@@ -150,6 +179,9 @@ static struct xr_wave_format_ex *g_wave_outp_formats[] =
 #endif
     0
 };
+
+static int g_client_does_fdk_aac = 0;
+static int g_client_fdk_aac_index = 0;
 
 static int g_client_does_opus = 0;
 static int g_client_opus_index = 0;
@@ -168,7 +200,7 @@ static int g_current_server_format_index = 0;
 static tui8 g_pcm_inp_22050_data[] = { 0 };
 static struct xr_wave_format_ex g_pcm_inp_22050 =
 {
-    1,               /* wFormatTag - WAVE_FORMAT_PCM */
+    WAVE_FORMAT_PCM, /* wFormatTag */
     2,               /* num of channels */
     22050,           /* samples per sec */
     88200,           /* avg bytes per sec */
@@ -181,7 +213,7 @@ static struct xr_wave_format_ex g_pcm_inp_22050 =
 static tui8 g_pcm_inp_44100_data[] = { 0 };
 static struct xr_wave_format_ex g_pcm_inp_44100 =
 {
-    1,               /* wFormatTag - WAVE_FORMAT_PCM */
+    WAVE_FORMAT_PCM, /* wFormatTag */
     2,               /* num of channels */
     44100,           /* samples per sec */
     176400,          /* avg bytes per sec */
@@ -202,21 +234,21 @@ static int g_client_input_format_index = 0;
 static int g_server_input_format_index = 0;
 
 /* microphone related */
-static int APP_CC sound_send_server_input_formats(void);
-static int APP_CC sound_process_input_format(int aindex, int wFormatTag,
+static int sound_send_server_input_formats(void);
+static int sound_process_input_format(int aindex, int wFormatTag,
                            int nChannels, int nSamplesPerSec,
                            int nAvgBytesPerSec, int nBlockAlign,
                            int wBitsPerSample, int cbSize, char *data);
-static int APP_CC sound_process_input_formats(struct stream *s, int size);
-static int APP_CC sound_input_start_recording(void);
-static int APP_CC sound_input_stop_recording(void);
-static int APP_CC sound_process_input_data(struct stream *s, int bytes);
-static int DEFAULT_CC sound_sndsrvr_source_data_in(struct trans *trans);
-static int APP_CC sound_start_source_listener();
-static int APP_CC sound_start_sink_listener();
+static int sound_process_input_formats(struct stream *s, int size);
+static int sound_input_start_recording(void);
+static int sound_input_stop_recording(void);
+static int sound_process_input_data(struct stream *s, int bytes);
+static int sound_sndsrvr_source_data_in(struct trans *trans);
+static int sound_start_source_listener(void);
+static int sound_start_sink_listener(void);
 
 /*****************************************************************************/
-static int APP_CC
+static int
 sound_send_server_output_formats(void)
 {
     struct stream *s;
@@ -318,7 +350,7 @@ sound_send_training(void)
 }
 
 /*****************************************************************************/
-static int APP_CC
+static int
 sound_process_output_format(int aindex, int wFormatTag, int nChannels,
                             int nSamplesPerSec, int nAvgBytesPerSec,
                             int nBlockAlign, int wBitsPerSample,
@@ -362,19 +394,23 @@ sound_process_output_format(int aindex, int wFormatTag, int nChannels,
     }
 #endif
 
-    if (wFormatTag == 0x0069)
+    switch(wFormatTag)
     {
-        LOG(0, ("wFormatTag, opus"));
-        g_client_does_opus = 1;
-        g_client_opus_index = aindex;
-        g_bbuf_size = 11520;
-    }
-    else if (wFormatTag == 0x0055)
-    {
-        LOG(0, ("wFormatTag, mp3"));
-        g_client_does_mp3lame = 1;
-        g_client_mp3lame_index = aindex;
-        g_bbuf_size = 11520;
+        case WAVE_FORMAT_AAC:
+            LOG(0, ("wFormatTag, fdk aac"));
+            g_client_does_fdk_aac = 1;
+            g_client_fdk_aac_index = aindex;
+            break;
+        case WAVE_FORMAT_MPEGLAYER3:
+            LOG(0, ("wFormatTag, mp3"));
+            g_client_does_mp3lame = 1;
+            g_client_mp3lame_index = aindex;
+            break;
+        case WAVE_FORMAT_OPUS:
+            LOG(0, ("wFormatTag, opus"));
+            g_client_does_opus = 1;
+            g_client_opus_index = aindex;
+            break;
     }
 
     return 0;
@@ -387,7 +423,7 @@ sound_process_output_format(int aindex, int wFormatTag, int nChannels,
     0020 10 b1 02 00 04 00 10 00 00 00
 */
 
-static int APP_CC
+static int
 sound_process_output_formats(struct stream *s, int size)
 {
     int num_formats;
@@ -429,6 +465,210 @@ sound_process_output_formats(struct stream *s, int size)
 
     return 0;
 }
+
+#if defined(XRDP_FDK_AAC)
+
+/*****************************************************************************/
+static int
+sound_wave_compress_fdk_aac(char *data, int data_bytes, int *format_index)
+{
+    int rv;
+    int cdata_bytes;
+    char *cdata;
+
+    AACENC_ERROR error;
+    int aot;
+    int sample_rate;
+    int mode;
+    int bitrate;
+    int afterburner;
+    int channel_order;
+    AACENC_InfoStruct info;
+    AACENC_BufDesc in_buf;
+    AACENC_BufDesc out_buf;
+    AACENC_InArgs in_args;
+    AACENC_OutArgs out_args;
+    void *in_buffer;
+    int in_identifier;
+    int in_size;
+    int in_elem_size;
+    void *out_buffer;
+    int out_identifier;
+    int out_size;
+    int out_elem_size;
+
+    rv = data_bytes;
+
+    if (g_client_does_fdk_aac == 0)
+    {
+        return rv;
+    }
+
+    if (g_fdk_aac_encoder == 0)
+    {
+        /* init fdk aac encoder */
+        LOG(0, ("sound_wave_compress_fdk_aac: using fdk aac"));
+
+        error = aacEncOpen(&g_fdk_aac_encoder, 0, 2);
+        if (error != AACENC_OK)
+        {
+            LOG(0, ("sound_wave_compress_fdk_aac: aacEncOpen() failed"));
+            return rv;
+        }
+
+        aot = 2; /* MPEG-4 AAC Low Complexity. */
+        error = aacEncoder_SetParam(g_fdk_aac_encoder, AACENC_AOT, aot);
+        if (error != AACENC_OK)
+        {
+            LOG(0, ("sound_wave_compress_fdk_aac: aacEncoder_SetParam() "
+                    "AACENC_AOT failed"));
+        }
+
+        sample_rate = g_fdk_aac_44100.nSamplesPerSec;
+        error = aacEncoder_SetParam(g_fdk_aac_encoder, AACENC_SAMPLERATE,
+                                    sample_rate);
+        if (error != AACENC_OK)
+        {
+            LOG(0, ("sound_wave_compress_fdk_aac: aacEncoder_SetParam() "
+                    "AACENC_SAMPLERATE failed"));
+        }
+
+        mode = MODE_2;
+        error = aacEncoder_SetParam(g_fdk_aac_encoder,
+                                    AACENC_CHANNELMODE, mode);
+        if (error != AACENC_OK)
+        {
+            LOG(0, ("sound_wave_compress_fdk_aac: aacEncoder_SetParam() "
+                    "AACENC_CHANNELMODE failed"));
+        }
+
+        channel_order = 1; /* WAVE file format channel ordering */
+        error = aacEncoder_SetParam(g_fdk_aac_encoder, AACENC_CHANNELORDER,
+                                    channel_order);
+        if (error != AACENC_OK)
+        {
+            LOG(0, ("sound_wave_compress_fdk_aac: aacEncoder_SetParam() "
+                    "AACENC_CHANNELORDER failed"));
+        }
+
+        /* bytes rate to bit rate */
+        bitrate = g_fdk_aac_44100.nAvgBytesPerSec * 8;
+        error = aacEncoder_SetParam(g_fdk_aac_encoder, AACENC_BITRATE,
+                                    bitrate);
+        if (error != AACENC_OK)
+        {
+            LOG(0, ("sound_wave_compress_fdk_aac: aacEncoder_SetParam() "
+                    "AACENC_BITRATE failed"));
+        }
+
+        error = aacEncoder_SetParam(g_fdk_aac_encoder, AACENC_TRANSMUX, 0);
+        if (error != AACENC_OK)
+        {
+            LOG(0, ("sound_wave_compress_fdk_aac: aacEncoder_SetParam() "
+                    "AACENC_TRANSMUX failed"));
+        }
+
+        afterburner = 1;
+        error = aacEncoder_SetParam(g_fdk_aac_encoder, AACENC_AFTERBURNER,
+                                    afterburner);
+        if (error != AACENC_OK)
+        {
+            LOG(0, ("sound_wave_compress_fdk_aac: aacEncoder_SetParam() "
+                    "AACENC_AFTERBURNER failed"));
+        }
+
+        error = aacEncEncode(g_fdk_aac_encoder, NULL, NULL, NULL, NULL);
+        if (error != AACENC_OK)
+        {
+            LOG(0, ("sound_wave_compress_fdk_aac: Unable to initialize "
+                    "the encoder"));
+        }
+
+        g_memset(&info, 0, sizeof(info));
+        error = aacEncInfo(g_fdk_aac_encoder, &info);
+        if (error != AACENC_OK)
+        {
+            LOG(0, ("sound_wave_compress_fdk_aac: aacEncInfo failed"));
+        }
+
+        LOG(0, ("sound_wave_compress_fdk_aac:"));
+        LOG(0, ("  AACENC_InfoStruct"));
+        LOG(0, ("    maxOutBufBytes %d", info.maxOutBufBytes));
+        LOG(0, ("    maxAncBytes %d", info.maxAncBytes));
+        LOG(0, ("    inBufFillLevel %d", info.inBufFillLevel));
+        LOG(0, ("    inputChannels %d", info.inputChannels));
+        LOG(0, ("    frameLength %d", info.frameLength));
+        LOG(0, ("    encoderDelay %d", info.encoderDelay));
+        LOG(0, ("    confBuf"));
+        LOG(0, ("    confSize %d", info.confSize));
+    }
+
+    rv = data_bytes;
+    cdata_bytes = data_bytes;
+    cdata = (char *) g_malloc(cdata_bytes, 0);
+    if (data_bytes < g_bbuf_size)
+    {
+        g_memset(data + data_bytes, 0, g_bbuf_size - data_bytes);
+        data_bytes = g_bbuf_size;
+    }
+
+    in_buffer = data;
+    in_identifier = IN_AUDIO_DATA;
+    in_size = data_bytes;
+    in_elem_size = 2;
+
+    g_memset(&in_args, 0, sizeof(in_args));
+    in_args.numInSamples = data_bytes / 2;
+    g_memset(&in_buf, 0, sizeof(in_buf));
+    in_buf.numBufs = 1;
+    in_buf.bufs = &in_buffer;
+    in_buf.bufferIdentifiers = &in_identifier;
+    in_buf.bufSizes = &in_size;
+    in_buf.bufElSizes = &in_elem_size;
+
+    out_buffer = cdata;
+    out_identifier = OUT_BITSTREAM_DATA;
+    out_size = cdata_bytes;
+    out_elem_size = 1;
+
+    g_memset(&out_buf, 0, sizeof(out_buf));
+    out_buf.numBufs = 1;
+    out_buf.bufs = &out_buffer;
+    out_buf.bufferIdentifiers = &out_identifier;
+    out_buf.bufSizes = &out_size;
+    out_buf.bufElSizes = &out_elem_size;
+
+    g_memset(&out_args, 0, sizeof(out_args));
+    error = aacEncEncode(g_fdk_aac_encoder, &in_buf, &out_buf,
+                         &in_args, &out_args);
+    if (error == AACENC_OK)
+    {
+        cdata_bytes = out_args.numOutBytes;
+        LOG(10, ("sound_wave_compress_fdk_aac: aacEncEncode ok "
+                 "cdata_bytes %d", cdata_bytes));
+        *format_index = g_client_fdk_aac_index;
+        g_memcpy(data, cdata, cdata_bytes);
+        rv = cdata_bytes;
+    }
+    else
+    {
+        LOG(0, ("sound_wave_compress_fdk_aac: aacEncEncode failed"));
+    }
+    g_free(cdata);
+
+    return rv;
+}
+
+#else
+
+/*****************************************************************************/
+static int
+sound_wave_compress_fdk_aac(char *data, int data_bytes, int *format_index)
+{
+    return data_bytes;
+}
+
+#endif
 
 #if defined(XRDP_OPUS)
 
@@ -595,12 +835,19 @@ sound_wave_compress_mp3lame(char *data, int data_bytes, int *format_index)
 static int
 sound_wave_compress(char *data, int data_bytes, int *format_index)
 {
-    if (g_client_does_opus)
+    if (g_client_does_fdk_aac)
     {
+        g_bbuf_size = 4096;
+        return sound_wave_compress_fdk_aac(data, data_bytes, format_index);
+    }
+    else if (g_client_does_opus)
+    {
+        g_bbuf_size = 11520;
         return sound_wave_compress_opus(data, data_bytes, format_index);
     }
     else if (g_client_does_mp3lame)
     {
+        g_bbuf_size = 11520;
         return sound_wave_compress_mp3lame(data, data_bytes, format_index);
     }
     return data_bytes;
@@ -654,6 +901,7 @@ sound_send_wave_data_chunk(char *data, int data_bytes)
     out_uint16_le(s, time);
     out_uint16_le(s, format_index); /* wFormatNo */
     g_cBlockNo++;
+    g_unacked_frames++;
     out_uint8(s, g_cBlockNo);
     g_sent_time[g_cBlockNo & 0xff] = time;
     g_sent_flag[g_cBlockNo & 0xff] = 1;
@@ -749,7 +997,7 @@ sound_send_close(void)
     /* send any left over data */
     if (g_buf_index)
     {
-        if (sound_send_wave_data_chunk(g_buffer, g_buf_index) != 0) 
+        if (sound_send_wave_data_chunk(g_buffer, g_buf_index) != 0)
         {
             LOG(10, ("sound_send_close: sound_send_wave_data_chunk failed"));
             return 1;
@@ -776,7 +1024,7 @@ sound_send_close(void)
 
 /*****************************************************************************/
 /* from client */
-static int APP_CC
+static int
 sound_process_training(struct stream *s, int size)
 {
     int time_diff;
@@ -788,31 +1036,54 @@ sound_process_training(struct stream *s, int size)
 
 /*****************************************************************************/
 /* from client */
-static int APP_CC
+static int
 sound_process_wave_confirm(struct stream *s, int size)
 {
     int wTimeStamp;
     int cConfirmedBlockNo;
+    int cleared_count;
     int time;
     int time_diff;
+    int block_no;
+    int block_no_clamped;
+    int found;
+    int index;
 
     time = g_time2();
     in_uint16_le(s, wTimeStamp);
     in_uint8(s, cConfirmedBlockNo);
     time_diff = time - g_sent_time[cConfirmedBlockNo & 0xff];
-    g_sent_flag[cConfirmedBlockNo & 0xff] &= ~1;
-
+    cleared_count = 0;
+    found = 0;
+    block_no = g_cBlockNo;
+    for (index = 0; index < g_unacked_frames; index++)
+    {
+        block_no_clamped = block_no & 0xff;
+        if ((cConfirmedBlockNo == block_no_clamped) || found)
+        {
+            found = 1;
+            if (g_sent_flag[block_no_clamped] & 1)
+            {
+                LOG(10, ("sound_process_wave_confirm: clearing %d",
+                    block_no_clamped));
+                g_sent_flag[block_no_clamped] &= ~1;
+                cleared_count++;
+            }
+        }
+        block_no--;
+    }
     LOG(10, ("sound_process_wave_confirm: wTimeStamp %d, "
-        "cConfirmedBlockNo %d time diff %d",
-        wTimeStamp, cConfirmedBlockNo, time_diff));
-
+        "cConfirmedBlockNo %d time diff %d cleared_count %d "
+        "g_unacked_frames %d", wTimeStamp, cConfirmedBlockNo, time_diff,
+        cleared_count, g_unacked_frames));
+    g_unacked_frames -= cleared_count;
     return 0;
 }
 
 /*****************************************************************************/
 /* process message in from the audio source, eg pulse, alsa
    on it's way to the client. returns error */
-static int APP_CC
+static int
 process_pcm_message(int id, int size, struct stream *s)
 {
     switch (id)
@@ -834,7 +1105,7 @@ process_pcm_message(int id, int size, struct stream *s)
 
 /* data in from sound_server_sink */
 
-static int DEFAULT_CC
+static int
 sound_sndsrvr_sink_data_in(struct trans *trans)
 {
     struct stream *s;
@@ -875,7 +1146,7 @@ sound_sndsrvr_sink_data_in(struct trans *trans)
 
 /* incoming connection on unix domain socket - sound_server_sink -> xrdp */
 
-static int DEFAULT_CC
+static int
 sound_sndsrvr_sink_conn_in(struct trans *trans, struct trans *new_trans)
 {
     LOG(0, ("sound_sndsrvr_sink_conn_in:"));
@@ -905,7 +1176,7 @@ sound_sndsrvr_sink_conn_in(struct trans *trans, struct trans *new_trans)
 
 /* incoming connection on unix domain socket - sound_server_source -> xrdp */
 
-static int DEFAULT_CC
+static int
 sound_sndsrvr_source_conn_in(struct trans *trans, struct trans *new_trans)
 {
     LOG(0, ("sound_sndsrvr_source_conn_in: client connected"));
@@ -932,7 +1203,7 @@ sound_sndsrvr_source_conn_in(struct trans *trans, struct trans *new_trans)
 }
 
 /*****************************************************************************/
-int APP_CC
+int
 sound_init(void)
 {
     LOG(0, ("sound_init:"));
@@ -951,6 +1222,9 @@ sound_init(void)
     /* save data from sound_server_source */
     fifo_init(&g_in_fifo, 100);
 
+    g_client_does_fdk_aac = 0;
+    g_client_fdk_aac_index = 0;
+
     g_client_does_opus = 0;
     g_client_opus_index = 0;
 
@@ -961,7 +1235,7 @@ sound_init(void)
 }
 
 /*****************************************************************************/
-int APP_CC
+int
 sound_deinit(void)
 {
     LOG(10, ("sound_deinit:"));
@@ -1007,7 +1281,7 @@ sound_deinit(void)
 
 /* data in from client ( client -> xrdp -> chansrv ) */
 
-int APP_CC
+int
 sound_data_in(struct stream *s, int chan_id, int chan_flags, int length,
               int total_length)
 {
@@ -1015,7 +1289,7 @@ sound_data_in(struct stream *s, int chan_id, int chan_flags, int length,
     int size;
     int ok_to_free = 1;
 
-    if (!read_entire_packet(s, &g_stream_incoming_packet, chan_flags, 
+    if (!read_entire_packet(s, &g_stream_incoming_packet, chan_flags,
                             length, total_length))
     {
         return 0;
@@ -1063,7 +1337,7 @@ sound_data_in(struct stream *s, int chan_id, int chan_flags, int length,
 }
 
 /*****************************************************************************/
-int APP_CC
+int
 sound_get_wait_objs(tbus *objs, int *count, int *timeout)
 {
     int lcount;
@@ -1099,7 +1373,7 @@ sound_get_wait_objs(tbus *objs, int *count, int *timeout)
 }
 
 /*****************************************************************************/
-int APP_CC
+int
 sound_check_wait_objs(void)
 {
     if (g_audio_l_trans_out != 0)
@@ -1157,7 +1431,7 @@ sound_check_wait_objs(void)
  *
  *****************************************************************************/
 
-static int APP_CC
+static int
 sound_send_server_input_formats(void)
 {
     struct stream *s;
@@ -1221,7 +1495,7 @@ sound_send_server_input_formats(void)
  *
  *****************************************************************************/
 
-static int APP_CC
+static int
 sound_process_input_format(int aindex, int wFormatTag, int nChannels,
                            int nSamplesPerSec, int nAvgBytesPerSec,
                            int nBlockAlign, int wBitsPerSample,
@@ -1269,7 +1543,7 @@ sound_process_input_format(int aindex, int wFormatTag, int nChannels,
  *
  *****************************************************************************/
 
-static int APP_CC
+static int
 sound_process_input_formats(struct stream *s, int size)
 {
     int num_formats;
@@ -1314,7 +1588,7 @@ sound_process_input_formats(struct stream *s, int size)
  *
  *****************************************************************************/
 
-static int APP_CC
+static int
 sound_input_start_recording(void)
 {
     struct stream* s;
@@ -1353,7 +1627,7 @@ sound_input_start_recording(void)
  *
  *****************************************************************************/
 
-static int APP_CC
+static int
 sound_input_stop_recording(void)
 {
     struct stream* s;
@@ -1383,7 +1657,7 @@ sound_input_stop_recording(void)
  * Process data: xrdp <- client
  *****************************************************************************/
 
-static int APP_CC
+static int
 sound_process_input_data(struct stream *s, int bytes)
 {
     struct stream *ls;
@@ -1411,7 +1685,7 @@ sound_process_input_data(struct stream *s, int bytes)
  * Got a command from sound_server_source
  *****************************************************************************/
 
-static int DEFAULT_CC
+static int
 sound_sndsrvr_source_data_in(struct trans *trans)
 {
     struct stream *ts = NULL;
@@ -1512,8 +1786,8 @@ sound_sndsrvr_source_data_in(struct trans *trans)
 /**
  * Start a listener for microphone redirection connections
  *****************************************************************************/
-static int APP_CC
-sound_start_source_listener()
+static int
+sound_start_source_listener(void)
 {
     char port[1024];
 
@@ -1529,8 +1803,8 @@ sound_start_source_listener()
 /**
  * Start a listener for speaker redirection connections
  *****************************************************************************/
-static int APP_CC
-sound_start_sink_listener()
+static int
+sound_start_sink_listener(void)
 {
     char port[1024];
 

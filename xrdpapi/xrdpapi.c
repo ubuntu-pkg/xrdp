@@ -17,6 +17,10 @@
  * limitations under the License.
  */
 
+#if defined(HAVE_CONFIG_H)
+#include <config_ac.h>
+#endif
+
 #define LOG_LEVEL 1
 #define LLOG(_level, _args) \
     do { if (_level < LOG_LEVEL) { ErrorF _args ; } } while (0)
@@ -35,6 +39,7 @@
 #include <sys/socket.h>
 #include <sys/un.h>
 
+#include "xrdp_sockets.h"
 #include "xrdpapi.h"
 
 struct wts_obj
@@ -144,7 +149,7 @@ WTSVirtualChannelOpenEx(unsigned int SessionId, const char *pVirtualName,
     memset(&s, 0, sizeof(struct sockaddr_un));
     s.sun_family = AF_UNIX;
     bytes = sizeof(s.sun_path);
-    snprintf(s.sun_path, bytes - 1, "/tmp/.xrdp/xrdpapi_%d", wts->display_num);
+    snprintf(s.sun_path, bytes - 1, CHANSRV_API_STR, wts->display_num);
     s.sun_path[bytes - 1] = 0;
     bytes = sizeof(struct sockaddr_un);
 
@@ -205,7 +210,7 @@ mysend(int sck, const void* adata, int bytes)
 /*
  * write data to client connection
  *
- * @return 0 on success, -1 on error
+ * @return 1 on success, 0 on error
  *****************************************************************************/
 int
 WTSVirtualChannelWrite(void *hChannelHandle, const char *Buffer,
@@ -222,18 +227,18 @@ WTSVirtualChannelWrite(void *hChannelHandle, const char *Buffer,
     if (wts == 0)
     {
         LLOGLN(10, ("WTSVirtualChannelWrite: wts is NULL"));
-        return -1;
+        return 0;
     }
 
     if (wts->status != 1)
     {
         LLOGLN(10, ("WTSVirtualChannelWrite: wts->status != 1"));
-        return -1;
+        return 0;
     }
 
     if (!can_send(wts->fd, 0))
     {
-        return 0;    /* can't write now, ok to try again */
+        return 1;    /* can't write now, ok to try again */
     }
 
     rv = 0;
@@ -246,7 +251,7 @@ WTSVirtualChannelWrite(void *hChannelHandle, const char *Buffer,
     else
     {
         LLOGLN(0, ("WTSVirtualChannelWrite: header write failed"));
-        return -1;
+        return 0;
     }
 
     LLOGLN(10, ("WTSVirtualChannelWrite: mysend() returned %d", rv));
@@ -255,7 +260,7 @@ WTSVirtualChannelWrite(void *hChannelHandle, const char *Buffer,
     {
         /* success, but zero bytes may have been written */
         *pBytesWritten = rv;
-        return 0;
+        return 1;
     }
 
 #if 0 /* coverity: this is dead code */
@@ -267,10 +272,14 @@ WTSVirtualChannelWrite(void *hChannelHandle, const char *Buffer,
 #endif
 
     /* fatal error */
-    return -1;
+    return 0;
 }
 
-/*****************************************************************************/
+/*
+ * read data from a client connection
+ *
+ * @return 1 on success, 0 on error
+ *****************************************************************************/
 int
 WTSVirtualChannelRead(void *hChannelHandle, unsigned int TimeOut,
                       char *Buffer, unsigned int BufferSize,

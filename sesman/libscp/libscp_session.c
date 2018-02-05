@@ -24,6 +24,10 @@
  *
  */
 
+#if defined(HAVE_CONFIG_H)
+#include <config_ac.h>
+#endif
+
 #include "libscp_session.h"
 
 #include <sys/types.h>
@@ -34,7 +38,7 @@
 
 /*******************************************************************/
 struct SCP_SESSION *
-scp_session_create()
+scp_session_create(void)
 {
     struct SCP_SESSION *s;
 
@@ -411,6 +415,21 @@ scp_session_set_addr(struct SCP_SESSION *s, int type, const void *addr)
         default:
             return 1;
     }
+
+    return 0;
+}
+
+/*******************************************************************/
+int
+scp_session_set_guid(struct SCP_SESSION *s, const tui8 *guid)
+{
+    if (0 == guid)
+    {
+        log_message(LOG_LEVEL_WARNING, "[session:%d] set_guid: null guid", __LINE__);
+        return 1;
+    }
+
+    g_memcpy(s->guid, guid, 16);
 
     return 0;
 }

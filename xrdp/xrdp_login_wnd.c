@@ -18,13 +18,22 @@
  * main login window and login help window
  */
 
+#if defined(HAVE_CONFIG_H)
+#include <config_ac.h>
+#endif
+
+#include "base64.h"
 #include "xrdp.h"
-#define ACCESS
 #include "log.h"
+
+#define ASK "ask"
+#define ASK_LEN g_strlen(ASK)
+#define BASE64PREFIX "{base64}"
+#define BASE64PREFIX_LEN g_strlen(BASE64PREFIX)
 
 /*****************************************************************************/
 /* all login help screen events go here */
-static int DEFAULT_CC
+static int
 xrdp_wm_login_help_notify(struct xrdp_bitmap *wnd,
                           struct xrdp_bitmap *sender,
                           int msg, long param1, long param2)
@@ -85,7 +94,7 @@ logging on.");
 
 #if 0
 /*****************************************************************************/
-static int DEFAULT_CC
+static int
 xrdp_wm_popup_notify(struct xrdp_bitmap *wnd,
                      struct xrdp_bitmap *sender,
                      int msg, int param1, int param2)
@@ -95,7 +104,7 @@ xrdp_wm_popup_notify(struct xrdp_bitmap *wnd,
 #endif
 
 /*****************************************************************************/
-int APP_CC
+int
 xrdp_wm_delete_all_children(struct xrdp_wm *self)
 {
     int index;
@@ -114,7 +123,7 @@ xrdp_wm_delete_all_children(struct xrdp_wm *self)
 }
 
 /*****************************************************************************/
-static int APP_CC
+static int
 set_mod_data_item(struct xrdp_mod_data *mod, char *name, char *value)
 {
     int index;
@@ -132,7 +141,7 @@ set_mod_data_item(struct xrdp_mod_data *mod, char *name, char *value)
 }
 
 /*****************************************************************************/
-static int APP_CC
+static int
 xrdp_wm_help_clicked(struct xrdp_bitmap *wnd)
 {
     struct xrdp_bitmap *help;
@@ -171,7 +180,7 @@ xrdp_wm_help_clicked(struct xrdp_bitmap *wnd)
 }
 
 /*****************************************************************************/
-static int APP_CC
+static int
 xrdp_wm_cancel_clicked(struct xrdp_bitmap *wnd)
 {
     if (wnd != 0)
@@ -189,7 +198,7 @@ xrdp_wm_cancel_clicked(struct xrdp_bitmap *wnd)
 }
 
 /*****************************************************************************/
-static int APP_CC
+static int
 xrdp_wm_ok_clicked(struct xrdp_bitmap *wnd)
 {
     struct xrdp_bitmap *combo;
@@ -265,7 +274,7 @@ xrdp_wm_ok_clicked(struct xrdp_bitmap *wnd)
 * @return the index number of the combobox that the user prefer.
 * 0 if the user does not prefer any choice.
 */
-static int APP_CC
+static int
 xrdp_wm_parse_domain_information(char *originalDomainInfo, int comboMax,
                                  int decode, char *resultBuffer)
 {
@@ -323,7 +332,7 @@ xrdp_wm_parse_domain_information(char *originalDomainInfo, int comboMax,
 }
 
 /******************************************************************************/
-static int APP_CC
+static int
 xrdp_wm_show_edits(struct xrdp_wm *self, struct xrdp_bitmap *combo)
 {
     int count;
@@ -336,6 +345,8 @@ xrdp_wm_show_edits(struct xrdp_wm *self, struct xrdp_bitmap *combo)
     struct xrdp_bitmap *b;
     struct xrdp_cfg_globals *globals;
     char resultIP[256];
+    char *plain; /* base64 decoded string */
+    size_t base64_length; /* length of base64 string */
 
     globals = &self->xrdp_config->cfg_globals;
 
@@ -363,7 +374,16 @@ xrdp_wm_show_edits(struct xrdp_wm *self, struct xrdp_bitmap *combo)
         {
             value = (char *)list_get_item(mod->values, index);
 
-            if (g_strncmp("ask", value, 3) == 0)
+            /* if the value begins with "{base64}", decode the string following it */
+            if (g_strncmp(BASE64PREFIX, value, BASE64PREFIX_LEN) == 0)
+            {
+                base64_length = g_strlen(value + BASE64PREFIX_LEN);
+                plain = (char *)g_malloc(base64_length, 0);
+                base64_decode(plain, value + BASE64PREFIX_LEN, base64_length);
+                g_strncpy(value, plain, g_strlen(plain));
+                g_free(plain);
+            }
+            else if (g_strncmp(ASK, value, ASK_LEN) == 0)
             {
                 /* label */
                 b = xrdp_bitmap_create(95, DEFAULT_EDIT_H, self->screen->bpp,
@@ -396,7 +416,19 @@ xrdp_wm_show_edits(struct xrdp_wm *self, struct xrdp_bitmap *combo)
                 b->pointer = 1;
                 b->tab_stop = 1;
                 b->caption1 = (char *)g_malloc(256, 1);
-                g_strncpy(b->caption1, value + 3, 255);
+                /* ask{base64}... 3 for "ask", 8 for "{base64}" */
+                if (g_strncmp(BASE64PREFIX, value + ASK_LEN, BASE64PREFIX_LEN) == 0)
+                {
+                    base64_length = g_strlen(value + ASK_LEN + BASE64PREFIX_LEN);
+                    plain = (char *)g_malloc(base64_length, 0);
+                    base64_decode(plain, value + ASK_LEN + BASE64PREFIX_LEN, base64_length);
+                    g_strncpy(b->caption1, plain, 255);
+                    g_free(plain);
+                }
+                else
+                {
+                    g_strncpy(b->caption1, value + ASK_LEN, 255);
+                }
                 b->edit_pos = g_mbstowcs(0, b->caption1, 0);
 
                 if (self->login_window->focused_control == 0)
@@ -433,12 +465,7 @@ xrdp_wm_show_edits(struct xrdp_wm *self, struct xrdp_bitmap *combo)
                     }
                 }
 
-#ifdef ACCESS
-
                 if ((g_strncmp(name, "password", 255) == 0) || (g_strncmp(name, "pampassword", 255) == 0))
-#else
-                if (g_strncmp(name, "password", 255) == 0)
-#endif
                 {
                     b->password_char = '*';
 
@@ -461,7 +488,7 @@ xrdp_wm_show_edits(struct xrdp_wm *self, struct xrdp_bitmap *combo)
 
 /*****************************************************************************/
 /* all login screen events go here */
-static int DEFAULT_CC
+static int
 xrdp_wm_login_notify(struct xrdp_bitmap *wnd,
                      struct xrdp_bitmap *sender,
                      int msg, long param1, long param2)
@@ -519,7 +546,7 @@ xrdp_wm_login_notify(struct xrdp_bitmap *wnd,
 }
 
 /******************************************************************************/
-static int APP_CC
+static int
 xrdp_wm_login_fill_in_combo(struct xrdp_wm *self, struct xrdp_bitmap *b)
 {
     struct list *sections;
@@ -602,7 +629,7 @@ xrdp_wm_login_fill_in_combo(struct xrdp_wm *self, struct xrdp_bitmap *b)
 }
 
 /******************************************************************************/
-int APP_CC
+int
 xrdp_login_wnd_create(struct xrdp_wm *self)
 {
     struct xrdp_bitmap      *but;
@@ -702,7 +729,15 @@ xrdp_login_wnd_create(struct xrdp_wm *self)
         {
             char fileName[256] ;
             but = xrdp_bitmap_create(4, 4, self->screen->bpp, WND_TYPE_IMAGE, self);
-            g_snprintf(fileName, 255, "%s/%s", XRDP_SHARE_PATH, globals->ls_background_image);
+            if (globals->ls_background_image[0] == '/')
+            {
+                g_snprintf(fileName, 255, "%s", globals->ls_background_image);
+            }
+            else
+            {
+                g_snprintf(fileName, 255, "%s/%s",
+                           XRDP_SHARE_PATH, globals->ls_background_image);
+            }
             log_message(LOG_LEVEL_DEBUG, "We try to load the following background file: %s", fileName);
             xrdp_bitmap_load(but, fileName, self->palette);
             but->parent = self->screen;
@@ -796,7 +831,7 @@ xrdp_login_wnd_create(struct xrdp_wm *self)
  *
  * @return 0 on success, -1 on failure
  *****************************************************************************/
-int APP_CC
+int
 load_xrdp_config(struct xrdp_config *config, int bpp)
 {
     struct xrdp_cfg_globals  *globals;
