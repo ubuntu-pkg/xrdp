@@ -27,4 +27,5 @@ apt-get purge xrdp
 cd ..
 gdebi ./xrdp_*git*.deb
  ```
-
+ 
+* Install matching version of xrdp (e.g. from https://github.com/ubuntu-pkg/xorgxrdp/releases)
