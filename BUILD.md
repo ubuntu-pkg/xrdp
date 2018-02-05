@@ -25,6 +25,6 @@ apt-get purge xrdp
 * Install built package
  ```
 cd ..
-gdebi ./xrdp_0.9.0+git*.deb
+gdebi ./xrdp_*git*.deb
  ```
 
