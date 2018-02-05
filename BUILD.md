@@ -28,4 +28,4 @@ cd ..
 gdebi ./xrdp_*git*.deb
  ```
  
-* Install matching version of xorg-xrdp (e.g. from https://github.com/ubuntu-pkg/xorgxrdp/releases)
+* Install matching version of xrdp-xorg (e.g. from https://github.com/ubuntu-pkg/xorgxrdp/releases)
