@@ -1,4 +1,4 @@
-# Ubuntu packaging recipe for xrdp
+# Building Ubuntu package
 
 Tested on Ubuntu 16.04
 
