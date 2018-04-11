@@ -16,14 +16,9 @@ cd xrdp
 mk-build-deps -i -r
  ```
 
-* Build on Ubuntu 16.04
+* Build
  ```
-debuild binary
- ```
-
-* Build on Ubuntu 18.04
- ```
-debuild -- binary
+dh binary
  ```
 
 * Remove old packages manually. Old xrdp config and initscripts can cause problems
