@@ -1,12 +1,12 @@
 [Unit]
 Description=xrdp daemon
+Documentation=man:xrdp(8) man:xrdp.ini(5)
 Requires=xrdp-sesman.service
-After=syslog.target network.target
+After=network.target xrdp-sesman.service
 
 [Service]
 EnvironmentFile=-/etc/default/xrdp
-ExecStart=/usr/sbin/xrdp $XRDP_OPTIONS -ns
-ExecStop=/bin/systemctl stop xrdp-sesman
+ExecStart=/usr/sbin/xrdp $XRDP_OPTIONS -n
 
 [Install]
 WantedBy=multi-user.target
