@@ -1,4 +1,9 @@
-xrdp (0.9.5+git180206~4cee672) xenial; urgency=low
+xrdp (0.9.6+git180411~3b5b7a5) xenial; urgency=low
+  * update source from https://github.com/neutrinolabs/xrdp/tree/devel, last commit 3b5b7a5
+
+ -- Fajar A. Nugraha <ubuntu-ppa@fajar.net>  Tue, 11 Apr 2018 12:56:00 +0700
+ 
+ xrdp (0.9.5+git180206~4cee672) xenial; urgency=low
   * update source from https://github.com/neutrinolabs/xrdp/tree/devel, last commit 4cee672
   * build fixes
 
