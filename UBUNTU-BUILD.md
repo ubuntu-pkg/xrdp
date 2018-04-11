@@ -1,6 +1,6 @@
 # Building Ubuntu package
 
-Tested on Ubuntu 16.04
+Tested on Ubuntu 16.04 and 18.04
 
 * Create an empty working directory
  ```
@@ -38,3 +38,8 @@ gdebi ./xrdp_*git*.deb
  ```
  
 * Install matching version of xrdp-xorg (e.g. from https://github.com/ubuntu-pkg/xorgxrdp/releases)
+
+* Edit `/etc/X11/Xwrapper.config`
+ ```
+allowed_users=anybody
+ ```
