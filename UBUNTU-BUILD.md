@@ -18,7 +18,7 @@ mk-build-deps -i -r
 
 * Build
  ```
-dh binary
+fakeroot dh binary
  ```
 
 * Remove old packages manually. Old xrdp config and initscripts can cause problems
