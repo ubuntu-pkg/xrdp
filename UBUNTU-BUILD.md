@@ -8,13 +8,22 @@ mkdir ~/xrdp-build
 cd ~/xrdp-build
  ```
 
-* Build xrdp
+* Install dependencies
  ```
 apt install git devscripts equivs gdebi-core
 git clone -b ubuntu-devel https://github.com/ubuntu-xrdp/xrdp.git
 cd xrdp
 mk-build-deps -i -r
-debuild
+ ```
+
+* Build xorgxrdp, on Ubuntu 16.04
+ ```
+debuild binary
+ ```
+
+* Build xorgxrdp, on Ubuntu 18.04
+ ```
+debuild -- binary
  ```
 
 * Remove old packages manually. Old xrdp config and initscripts can cause problems
